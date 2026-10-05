@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#080d18">
+  <title>Approve submissions — VCKTEC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script><link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="min-h-screen bg-ink text-slate-100 antialiased">
+  <div class="global-loader" id="global-loader" role="status" aria-label="Loading VCKTEC"><div class="loader-core"><span class="loader-orbit"></span><img src="assets/images/society-logo.jpg" alt="" class="loader-logo"><span class="loader-pulse"></span></div><p class="loader-wordmark">VCKTEC<span>.</span></p><p class="loader-caption">BUILDING TOMORROW, TOGETHER</p><div class="loader-track"><span></span></div></div>
+  <header class="site-header"><nav class="site-nav page-shell dashboard-nav" aria-label="Review navigation"><a class="brand" href="admin.html"><img src="assets/images/society-logo.jpg" alt=""><span><strong>VCKTEC</strong><small>Submission review</small></span></a><div class="nav-links"><a href="admin.html">← Dashboard</a><button class="button button-small button-outline" id="logout-button" type="button">Sign out</button></div></nav></header>
+  <main class="dashboard page-shell">
+    <section class="dashboard-gate" id="review-gate" aria-live="polite"><p class="section-kicker">OWNER · PRESIDENT · EDITOR</p><h1 id="review-gate-title">Checking your access…</h1><p id="review-gate-copy">Please wait while we verify your membership.</p><a class="button button-primary" id="review-gate-link" href="login.html" hidden>Go to sign in</a></section>
+    <section class="dashboard-content" id="review-content" hidden>
+      <div class="dashboard-heading"><div><p class="section-kicker">PRIVATE APPROVAL QUEUE</p><h1>Review <span class="gradient-text">submissions.</span></h1><p>Nothing submitted by a member is public until you approve it.</p></div></div>
+      <section class="panel-card"><div class="dashboard-section-heading"><div><h2>Waiting for approval</h2><p class="panel-intro">Review the full details, then approve or reject each item.</p></div></div><div class="managed-list" id="content-review-queue"></div></section>
+      <p class="form-message" id="review-message" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+  <script type="module" src="assets/js/site-ui.js"></script><script type="module" src="assets/js/auth.js"></script><script type="module" src="assets/js/review.js"></script>
+</body>
+</html>

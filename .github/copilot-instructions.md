@@ -1,0 +1,13 @@
+# Repository guidance
+
+- This repository contains the VCKTEC multi-page static website and an ESP32 robot sketch. Public page data is rendered by `assets/js/app.js`; manager workflows are in `assets/js/admin.js`. Keep website changes in root HTML files and `assets/`; do not modify robot firmware unless the request concerns it.
+- The website is plain HTML, CSS, and browser-native JavaScript modules. It is deployed on GitHub Pages and uses Firebase's modular client SDK from the Google CDN; do not introduce a server-side runtime or expose Firebase service-account credentials.
+- Firebase authorization is enforced by `firestore.rules` and `storage.rules`. Keep client UI role checks consistent with those rules. New registrations must start as pending; owners and presidents can assign member, editor, or president roles. Never allow users to assign themselves roles.
+- Public events, gallery albums, Weekly technology posts, board profiles, and the anonymous question form are available to visitors. Approved members submit events, Weekly posts, photos, and videos into private `contentSubmissions`; owner, president, or editor approval is required before publication. Editors can approve submissions and edit/delete published events, gallery media, and Weekly posts. Only owners manage board profiles; only owners/presidents manage user roles. Unauthenticated visitors can submit identity-free messages to `anonymousSubmissions`, which only owners and presidents can read or review.
+- Google Authentication must preserve the same pending-membership approval flow as email/password registration. Do not grant access based solely on a successful Google sign-in.
+- Public announcement pop-ups and the `updates.html` archive read from `announcements` only when active and within their display window; keep manager writes, safe internal destinations, and per-announcement local dismissal in sync with Firestore rules and Storage paths.
+- Keep the global entry loader and cloud maintenance check in `assets/js/site-ui.js` consistent across every HTML page. The live `settings/site_config.maintenanceMode` flag must not lock out approved owners or presidents.
+- Use the shared toast API (`window.vcktecToast`) for concise success/error feedback, and lock submit buttons while asynchronous forms are saving or uploading.
+- Keep the website responsive, accessible, and consistent with the dark VCKTEC visual style in `assets/css/style.css`.
+- Run JavaScript syntax and HTML structure checks after changing the website. Test through an HTTP server because browser ES modules are not supported from local `file:` URLs.
+- Preserve the original ESP32 project in `src/` and `platformio.ini`.

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#080d18">
+  <meta name="description" content="Ask VCKTEC a question or share an idea anonymously.">
+  <title>Ask VCKTEC — Questions & ideas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script><link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="min-h-screen bg-ink text-slate-100 antialiased" data-page="community">
+  <div class="global-loader" id="global-loader" role="status" aria-label="Loading VCKTEC"><div class="loader-core"><span class="loader-orbit"></span><img src="assets/images/society-logo.jpg" alt="" class="loader-logo"><span class="loader-pulse"></span></div><p class="loader-wordmark">VCKTEC<span>.</span></p><p class="loader-caption">BUILDING TOMORROW, TOGETHER</p><div class="loader-track"><span></span></div></div>
+  <header class="site-header"><nav class="site-nav page-shell" aria-label="Main navigation">
+    <a class="brand" href="index.html"><img src="assets/images/society-logo.jpg" alt=""><span><strong>VCKTEC</strong><small>Vidyartha College Kandy</small></span></a>
+    <button class="nav-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="primary-nav"><span></span><span></span><span></span></button>
+    <div class="nav-links" id="primary-nav"><a href="events.html">Events</a><a href="gallery.html">Gallery</a><a href="weekly.html">Weekly</a><a href="board.html">Board</a><a href="about.html">About</a><a class="is-current" href="community.html">Ask us</a><a href="updates.html">Updates</a><a class="button button-small button-outline" href="login.html">Member portal <span>↗</span></a></div>
+  </nav></header>
+  <main class="page-shell inner-page community-layout">
+    <div class="page-hero"><p class="section-kicker">YOUR VOICE, YOUR CHOICE</p><h1>Ask freely.<br><span class="gradient-text">Stay anonymous.</span></h1><p>Curious about the society? Have an idea, a suggestion, or something you’d like us to think about? Send it privately to the VCKTEC team—no name or email needed.</p></div>
+    <section class="community-card" aria-labelledby="community-form-title">
+      <div class="community-card-heading"><span class="community-icon" aria-hidden="true">✳</span><div><p class="section-kicker">PRIVATE TO THE VCKTEC TEAM</p><h2 id="community-form-title">What’s on your mind?</h2></div></div>
+      <form id="anonymous-form" class="form-stack">
+        <label>What would you like to share?
+          <select name="type" required><option value="question">Ask a question</option><option value="suggestion">Share a suggestion</option></select>
+        </label>
+        <label>Topic <span class="field-hint">Keep it short and clear</span><input name="topic" required maxlength="100" placeholder="e.g. Joining the society, workshop ideas"></label>
+        <label>Your message<textarea name="message" rows="7" required minlength="10" maxlength="2000" placeholder="Write your question or idea here. Please don't include names, contact details, passwords, or other private information."></textarea><span class="field-hint">10–2,000 characters. Please don’t include personal or sensitive information.</span></label>
+        <label class="honeypot-field" aria-hidden="true">Leave this field empty<input name="website" tabindex="-1" autocomplete="off"></label>
+        <button class="button button-primary" type="submit">Send anonymously <span aria-hidden="true">→</span></button>
+      </form>
+      <p class="anonymous-note"><strong>What happens next?</strong> Your message is only visible to VCKTEC’s owner and presidents, who review it privately. It won’t appear on the website. This form collects no contact details, so the team can’t reply directly. Please don’t include personal or sensitive information in your message.</p>
+      <p class="form-message" id="community-message" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+  <footer class="site-footer"><div class="page-shell footer-inner"><a class="brand footer-brand" href="index.html"><img src="assets/images/society-logo.jpg" alt=""><span><strong>VCKTEC</strong><small>Vidyartha College Kandy</small></span></a><span>Building tomorrow, together.</span><span>© <span id="current-year"></span> VCKTEC</span></div></footer>
+  <script type="module" src="assets/js/site-ui.js"></script><script type="module" src="assets/js/app.js"></script><script type="module" src="assets/js/community.js"></script>
+</body>
+</html>

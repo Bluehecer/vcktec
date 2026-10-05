@@ -1,0 +1,347 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function hasProfile() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isApprovedMember() {
+      return hasProfile()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true;
+    }
+
+    function isOwner() {
+      return isApprovedMember()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner';
+    }
+
+    function isPresident() {
+      return isApprovedMember()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'president';
+    }
+
+    function isEditor() {
+      return isApprovedMember()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'editor';
+    }
+
+    function isManager() {
+      return isOwner() || isPresident();
+    }
+
+    function isContentApprover() {
+      return isManager() || isEditor();
+    }
+
+    function isEditorPublishingApprovedSubmission(contentType, publicDocumentId) {
+      return isEditor()
+        && request.resource.data.submissionId is string
+        && existsAfter(/databases/$(database)/documents/contentSubmissions/$(request.resource.data.submissionId))
+        && getAfter(/databases/$(database)/documents/contentSubmissions/$(request.resource.data.submissionId)).data.type == contentType
+        && getAfter(/databases/$(database)/documents/contentSubmissions/$(request.resource.data.submissionId)).data.status == 'approved'
+        && getAfter(/databases/$(database)/documents/contentSubmissions/$(request.resource.data.submissionId)).data.reviewedBy == request.auth.uid
+        && getAfter(/databases/$(database)/documents/contentSubmissions/$(request.resource.data.submissionId)).data.publishedContentId == publicDocumentId;
+    }
+
+    function validAnnouncement(data) {
+      return data.keys().hasOnly([
+          'title', 'message', 'imageUrl', 'imageStoragePath', 'destinationType',
+          'destinationId', 'destinationLabel', 'linkText', 'startsAt', 'expiresAt',
+          'active', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'updatedByName'
+        ])
+        && data.title is string
+        && data.title.size() > 0
+        && data.title.size() <= 100
+        && data.message is string
+        && data.message.size() > 0
+        && data.message.size() <= 600
+        && data.imageUrl is string
+        && (data.imageUrl == '' || data.imageUrl.matches('https://.*'))
+        && data.imageStoragePath is string
+        && data.destinationType in [
+          'none', 'home', 'events', 'gallery', 'weekly', 'about', 'board',
+          'community', 'event', 'album', 'weeklyPost'
+        ]
+        && data.destinationId is string
+        && data.destinationLabel is string
+        && data.linkText is string
+        && data.linkText.size() <= 45
+        && (data.startsAt == null || data.startsAt is timestamp)
+        && (data.expiresAt == null || data.expiresAt is timestamp)
+        && data.active is bool
+        && data.updatedAt is timestamp
+        && data.updatedBy == request.auth.uid
+        && data.updatedByName is string
+        && data.updatedByName.size() > 0
+        && data.updatedByName.size() <= 100
+        && ((data.destinationType in ['event', 'album', 'weeklyPost']
+            && data.destinationId.size() > 0
+            && data.destinationLabel.size() > 0)
+          || (!(data.destinationType in ['event', 'album', 'weeklyPost'])
+            && data.destinationId == ''
+            && data.destinationLabel == ''));
+    }
+
+    match /users/{userId} {
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'approved', 'createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.role == 'pending'
+        && request.resource.data.approved == false;
+
+      allow read: if signedIn() && (request.auth.uid == userId || isManager());
+
+      allow update: if (isOwner() || (isPresident() && resource.data.role != 'owner'))
+        && userId != request.auth.uid
+        && resource.data.role != 'owner'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'approved'])
+        && request.resource.data.role in ['member', 'editor', 'president']
+        && request.resource.data.approved == true;
+
+      allow delete: if false;
+    }
+
+    match /events/{eventId} {
+      allow read: if true;
+      allow create: if (isManager() || isEditorPublishingApprovedSubmission('event', eventId))
+        && request.resource.data.title is string
+        && request.resource.data.date is string
+        && request.resource.data.time is string
+        && request.resource.data.description is string
+        && (!request.resource.data.keys().hasAny(['coverImageUrl']) || request.resource.data.coverImageUrl is string)
+        && (!request.resource.data.keys().hasAny(['topic']) || request.resource.data.topic is string)
+        && (!request.resource.data.keys().hasAny(['venue']) || request.resource.data.venue is string)
+        && (!request.resource.data.keys().hasAny(['tags']) || request.resource.data.tags is list);
+      allow update: if isContentApprover()
+        && request.resource.data.title is string
+        && request.resource.data.date is string
+        && request.resource.data.time is string
+        && request.resource.data.description is string
+        && (!request.resource.data.keys().hasAny(['coverImageUrl']) || request.resource.data.coverImageUrl is string)
+        && (!request.resource.data.keys().hasAny(['topic']) || request.resource.data.topic is string)
+        && (!request.resource.data.keys().hasAny(['venue']) || request.resource.data.venue is string)
+        && (!request.resource.data.keys().hasAny(['tags']) || request.resource.data.tags is list);
+      allow delete: if isContentApprover();
+    }
+
+    match /gallery/{photoId} {
+      allow read: if true;
+      allow create: if (isManager() || isEditorPublishingApprovedSubmission('media', photoId))
+        && request.resource.data.album is string
+        && request.resource.data.caption is string
+        && ((request.resource.data.keys().hasAny(['mediaUrl'])
+          && request.resource.data.mediaUrl is string
+          && request.resource.data.mediaUrl.matches('https://.*'))
+          || (request.resource.data.keys().hasAny(['imageUrl'])
+          && request.resource.data.imageUrl is string
+          && request.resource.data.imageUrl.matches('https://.*')));
+      allow update, delete: if isContentApprover();
+    }
+
+    match /weeklyPosts/{postId} {
+      allow read: if true;
+      allow create: if (isManager() || isEditorPublishingApprovedSubmission('weekly', postId))
+        && request.resource.data.title is string
+        && request.resource.data.topic is string
+        && request.resource.data.excerpt is string
+        && request.resource.data.description is string
+        && request.resource.data.tags is list
+        && request.resource.data.sourceUrl is string
+        && request.resource.data.sourceUrl.matches('https://.*')
+        && (!request.resource.data.keys().hasAny(['sources']) || request.resource.data.sources is list)
+        && (!request.resource.data.keys().hasAny(['authorName'])
+          || (request.resource.data.authorName is string && request.resource.data.authorName.size() <= 100))
+        && (!request.resource.data.keys().hasAny(['updatedByName'])
+          || (request.resource.data.updatedByName is string && request.resource.data.updatedByName.size() <= 100))
+        && (!request.resource.data.keys().hasAny(['createdAt']) || request.resource.data.createdAt is timestamp)
+        && (!request.resource.data.keys().hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp)
+        && request.resource.data.imageUrl is string
+        && request.resource.data.imageUrl.matches('https://.*');
+      allow update: if isContentApprover()
+        && request.resource.data.title is string
+        && request.resource.data.topic is string
+        && request.resource.data.excerpt is string
+        && request.resource.data.description is string
+        && request.resource.data.tags is list
+        && request.resource.data.sourceUrl is string
+        && request.resource.data.sourceUrl.matches('https://.*')
+        && (!request.resource.data.keys().hasAny(['sources']) || request.resource.data.sources is list)
+        && (!request.resource.data.keys().hasAny(['authorName'])
+          || (request.resource.data.authorName is string && request.resource.data.authorName.size() <= 100))
+        && (!request.resource.data.keys().hasAny(['updatedByName'])
+          || (request.resource.data.updatedByName is string && request.resource.data.updatedByName.size() <= 100))
+        && (!request.resource.data.keys().hasAny(['createdAt']) || request.resource.data.createdAt is timestamp)
+        && (!request.resource.data.keys().hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp)
+        && request.resource.data.imageUrl is string
+        && request.resource.data.imageUrl.matches('https://.*');
+      allow delete: if isContentApprover();
+    }
+
+    match /boardMembers/{memberId} {
+      allow read: if true;
+      allow create, update: if isOwner()
+        && request.resource.data.name is string
+        && request.resource.data.rank is string
+        && request.resource.data.bio is string
+        && request.resource.data.order is int
+        && request.resource.data.order >= 1
+        && request.resource.data.order <= 100
+        && request.resource.data.imageUrl is string
+        && request.resource.data.imageUrl.matches('https://.*');
+      allow delete: if isOwner();
+    }
+
+    match /settings/{settingId} {
+      allow read: if settingId == 'site_config';
+      allow create, update: if isOwner()
+        && settingId == 'site_config'
+        && request.resource.data.maintenanceMode is bool;
+      allow delete: if false;
+    }
+
+    match /eventSuggestions/{suggestionId} {
+      allow create: if isApprovedMember()
+        && request.resource.data.submittedBy == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.title is string
+        && request.resource.data.date is string
+        && request.resource.data.time is string
+        && request.resource.data.description is string;
+      allow read: if isContentApprover()
+        || (isApprovedMember() && resource.data.submittedBy == request.auth.uid);
+      allow update: if isContentApprover()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedBy', 'reviewedAt'])
+        && request.resource.data.status in ['approved', 'rejected']
+        && request.resource.data.reviewedBy == request.auth.uid;
+      allow delete: if false;
+    }
+
+    match /photoSuggestions/{suggestionId} {
+      allow create: if isApprovedMember()
+        && request.resource.data.submittedBy == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.album is string
+        && request.resource.data.caption is string
+        && request.resource.data.imageUrl is string
+        && request.resource.data.imageUrl.matches('https://.*')
+        && request.resource.data.storagePath is string;
+      allow read: if isContentApprover()
+        || (isApprovedMember() && resource.data.submittedBy == request.auth.uid);
+      allow update: if isContentApprover()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedBy', 'reviewedAt'])
+        && request.resource.data.status in ['approved', 'rejected']
+        && request.resource.data.reviewedBy == request.auth.uid;
+      allow delete: if false;
+    }
+
+    match /anonymousSubmissions/{submissionId} {
+      allow create: if request.resource.data.keys().hasOnly(['type', 'topic', 'message', 'status', 'createdAt'])
+        && request.resource.data.type in ['question', 'suggestion']
+        && request.resource.data.topic is string
+        && request.resource.data.topic.size() >= 2
+        && request.resource.data.topic.size() <= 100
+        && request.resource.data.message is string
+        && request.resource.data.message.size() >= 10
+        && request.resource.data.message.size() <= 2000
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt is timestamp;
+      allow read: if isManager();
+      allow update: if isManager()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedBy', 'reviewedAt'])
+        && request.resource.data.status in ['pending', 'reviewed']
+        && request.resource.data.reviewedBy == request.auth.uid
+        && request.resource.data.reviewedAt is timestamp;
+      allow delete: if isManager();
+    }
+
+    match /contentSubmissions/{submissionId} {
+      allow create: if isApprovedMember()
+        && request.resource.data.keys().hasOnly([
+          'type', 'title', 'topic', 'venue', 'date', 'time', 'description', 'tags',
+          'coverImageUrl', 'coverStoragePath', 'excerpt', 'sources', 'sourceUrl',
+          'imageUrl', 'imageStoragePath', 'album', 'caption', 'eventId', 'mediaUrl',
+          'mediaType', 'storagePath', 'submittedBy', 'submittedByName', 'status', 'createdAt'
+        ])
+        && request.resource.data.submittedBy == request.auth.uid
+        && request.resource.data.submittedByName is string
+        && request.resource.data.submittedByName.size() > 0
+        && request.resource.data.submittedByName.size() <= 100
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt is timestamp
+        && (
+          (request.resource.data.type == 'event'
+            && request.resource.data.title is string
+            && request.resource.data.title.size() > 0
+            && request.resource.data.title.size() <= 120
+            && request.resource.data.date is string
+            && request.resource.data.time is string
+            && request.resource.data.description is string
+            && request.resource.data.description.size() <= 6000
+            && request.resource.data.tags is list
+            && (!request.resource.data.keys().hasAny(['coverImageUrl'])
+              || request.resource.data.coverImageUrl == ''
+              || request.resource.data.coverImageUrl.matches('https://.*')))
+          || (request.resource.data.type == 'weekly'
+            && request.resource.data.title is string
+            && request.resource.data.title.size() > 0
+            && request.resource.data.title.size() <= 150
+            && request.resource.data.topic is string
+            && request.resource.data.excerpt is string
+            && request.resource.data.description is string
+            && request.resource.data.description.size() > 0
+            && request.resource.data.description.size() <= 8000
+            && request.resource.data.tags is list
+            && request.resource.data.sources is list
+            && request.resource.data.sourceUrl.matches('https://.*')
+            && request.resource.data.imageUrl.matches('https://.*')
+            && request.resource.data.imageStoragePath is string)
+          || (request.resource.data.type == 'media'
+            && request.resource.data.album is string
+            && request.resource.data.album.size() > 0
+            && request.resource.data.album.size() <= 120
+            && request.resource.data.caption is string
+            && request.resource.data.mediaUrl.matches('https://.*')
+            && request.resource.data.mediaType in ['image', 'video']
+            && request.resource.data.storagePath is string)
+        );
+      allow read: if isContentApprover()
+        || (isApprovedMember() && resource.data.submittedBy == request.auth.uid);
+      allow update: if isContentApprover()
+        && resource.data.status == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'reviewedBy', 'reviewedByName', 'reviewedAt', 'publishedContentId'
+        ])
+        && request.resource.data.status in ['approved', 'rejected']
+        && request.resource.data.reviewedBy == request.auth.uid
+        && request.resource.data.reviewedAt is timestamp
+        && (request.resource.data.status != 'approved'
+          || request.resource.data.publishedContentId is string);
+      allow delete: if isContentApprover();
+    }
+
+    match /announcements/{announcementId} {
+      allow read: if isContentApprover() || resource.data.active == true;
+      allow create: if isContentApprover()
+        && validAnnouncement(request.resource.data)
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isContentApprover()
+        && validAnnouncement(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title', 'message', 'imageUrl', 'imageStoragePath', 'destinationType',
+          'destinationId', 'destinationLabel', 'linkText', 'startsAt', 'expiresAt',
+          'active', 'updatedAt', 'updatedBy', 'updatedByName'
+        ]);
+      allow delete: if isContentApprover();
+    }
+  }
+}

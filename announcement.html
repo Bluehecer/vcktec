@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#080d18">
+  <title>Announcements — VCKTEC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script><link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="min-h-screen bg-ink text-slate-100 antialiased">
+  <div class="global-loader" id="global-loader" role="status" aria-label="Loading VCKTEC"><div class="loader-core"><span class="loader-orbit"></span><img src="assets/images/society-logo.jpg" alt="" class="loader-logo"><span class="loader-pulse"></span></div><p class="loader-wordmark">VCKTEC<span>.</span></p><p class="loader-caption">BUILDING TOMORROW, TOGETHER</p><div class="loader-track"><span></span></div></div>
+  <header class="site-header"><nav class="site-nav page-shell dashboard-nav" aria-label="Announcement management navigation"><a class="brand" href="admin.html"><img src="assets/images/society-logo.jpg" alt=""><span><strong>VCKTEC</strong><small>Announcements</small></span></a><div class="nav-links"><a href="admin.html">← Dashboard</a><button class="button button-small button-outline" id="logout-button" type="button">Sign out</button></div></nav></header>
+  <main class="dashboard page-shell">
+    <section class="dashboard-gate" id="announcement-gate" aria-live="polite"><p class="section-kicker">OWNER · PRESIDENT · EDITOR</p><h1 id="announcement-gate-title">Checking your access…</h1><p id="announcement-gate-copy">Please wait while we verify your membership.</p><a class="button button-primary" id="announcement-gate-link" href="login.html" hidden>Go to sign in</a></section>
+    <section class="dashboard-content" id="announcement-content" hidden>
+      <div class="dashboard-heading"><div><p class="section-kicker">SITE-WIDE POP-UP MESSAGES</p><h1>Share an <span class="gradient-text">announcement.</span></h1><p>Visitors see the newest active announcement once per browser, with an optional image and direct link.</p></div></div>
+      <div class="dashboard-grid manager-grid">
+        <section class="panel-card">
+          <h2 id="announcement-form-heading">Create announcement.</h2>
+          <form id="announcement-form" class="form-stack">
+            <input name="announcementId" type="hidden"><input name="previousImagePath" type="hidden">
+            <label>Headline<input name="title" maxlength="100" required placeholder="e.g. Robotics workshop this Friday"></label>
+            <label>Message or caption<textarea name="message" rows="5" maxlength="600" required placeholder="Add the key details visitors should know."></textarea></label>
+            <label>Optional image<input name="image" type="file" accept="image/jpeg,image/png,image/webp,image/gif"><span class="field-hint">JPG, PNG, WebP, or GIF. Maximum 8 MB.</span></label>
+            <div class="upload-preview" id="announcement-image-preview" hidden></div>
+            <label>Where should the button go?
+              <select name="destinationType">
+                <option value="none">No button</option><option value="home">Home page</option><option value="events">Events page</option>
+                <option value="gallery">Gallery page</option><option value="weekly">Weekly page</option><option value="about">About page</option>
+                <option value="board">Board page</option><option value="community">Ask VCKTEC page</option>
+                <option value="event">Specific event</option><option value="album">Specific album</option><option value="weeklyPost">Specific Weekly post</option>
+              </select>
+            </label>
+            <label id="destination-item-label" hidden>Choose content<select name="destinationId" disabled><option value="">Choose content</option></select></label>
+            <label>Button caption<input name="linkText" maxlength="45" placeholder="e.g. Explore the event"></label>
+            <div class="form-row"><label>Start showing (optional)<input name="startsAt" type="datetime-local"><span class="field-hint">Leave blank to show immediately.</span></label><label>Stop showing (optional)<input name="expiresAt" type="datetime-local"><span class="field-hint">Leave blank for no end date.</span></label></div>
+            <label class="checkbox-label"><input name="active" type="checkbox" checked> Publish this announcement now</label>
+            <div class="form-row"><button class="button button-primary" type="submit">Publish announcement</button><button class="button button-outline" id="cancel-announcement-edit" type="button" hidden>Cancel edit</button></div>
+          </form>
+          <p class="form-message" id="announcement-message" role="status" aria-live="polite"></p>
+        </section>
+        <section class="panel-card"><p class="section-kicker">ANNOUNCEMENTS</p><p class="panel-intro">Pause, edit, or remove messages. Each published announcement is shown once per visitor in that browser.</p><div class="managed-list" id="managed-announcements"></div></section>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="assets/js/site-ui.js"></script><script type="module" src="assets/js/auth.js"></script><script type="module" src="assets/js/announcements-admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#080d18">
+  <title>Role management — VCKTEC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script><link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="min-h-screen bg-ink text-slate-100 antialiased">
+  <div class="global-loader" id="global-loader" role="status" aria-label="Loading VCKTEC"><div class="loader-core"><span class="loader-orbit"></span><img src="assets/images/society-logo.jpg" alt="" class="loader-logo"><span class="loader-pulse"></span></div><p class="loader-wordmark">VCKTEC<span>.</span></p><p class="loader-caption">BUILDING TOMORROW, TOGETHER</p><div class="loader-track"><span></span></div></div>
+  <header class="site-header"><nav class="site-nav page-shell dashboard-nav" aria-label="Role management navigation"><a class="brand" href="admin.html"><img src="assets/images/society-logo.jpg" alt=""><span><strong>VCKTEC</strong><small>Role management</small></span></a><div class="nav-links"><a href="admin.html">← Dashboard</a><button class="button button-small button-outline" id="logout-button" type="button">Sign out</button></div></nav></header>
+  <main class="dashboard page-shell">
+    <section class="dashboard-gate" id="roles-gate" aria-live="polite"><p class="section-kicker">OWNER & PRESIDENT ACCESS</p><h1 id="roles-gate-title">Checking your access…</h1><p id="roles-gate-copy">Please wait while we verify your membership.</p><a class="button button-primary" id="roles-gate-link" href="login.html" hidden>Go to sign in</a></section>
+    <section class="dashboard-content" id="roles-content" hidden>
+      <div class="dashboard-heading"><div><p class="section-kicker">TEAM ACCESS</p><h1>Assign <span class="gradient-text">roles.</span></h1><p>Approve registrations and decide who can review and manage society content.</p></div></div>
+      <div class="role-legend panel-card"><strong>Member</strong><span>Submits events, Weekly stories and gallery media for review.</span><strong>Editor</strong><span>Reviews submissions and edits or removes published content.</span><strong>President</strong><span>Reviews and manages content, members and editor roles.</span><strong>Owner</strong><span>Full access, including role management and board profiles.</span></div>
+      <section class="panel-card review-panel"><h2>Membership requests</h2><div class="managed-list" id="role-pending-members"></div><h2 class="list-subheading">Current team</h2><div class="managed-list" id="role-active-members"></div></section>
+      <p class="form-message" id="roles-message" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+  <script type="module" src="assets/js/site-ui.js"></script><script type="module" src="assets/js/auth.js"></script><script type="module" src="assets/js/roles.js"></script>
+</body>
+</html>
