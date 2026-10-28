@@ -519,8 +519,14 @@ h1, h2, h3, p { margin-top: 0; }
   .maintenance-control .button { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .brand strong, .brand strong::after, .hero-copy > *, .global-loader::before, .global-loader::after,
-  .loader-orbit, .loader-pulse, .loader-track span, .loader-wordmark, .loader-caption,
+  .brand strong, .brand strong::after, .hero-copy > *,
   .maintenance-screen, .maintenance-screen::before, .maintenance-screen::after, .maintenance-orbit,
   .maintenance-panel, .button-spinner { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+  .global-loader { transition-duration: .5s !important; }
+  .global-loader::before { animation-duration: 18s !important; animation-iteration-count: infinite !important; }
+  .global-loader::after { animation-duration: 25s !important; animation-iteration-count: infinite !important; }
+  .loader-orbit { animation-duration: 1.35s !important; animation-iteration-count: infinite !important; }
+  .loader-pulse { animation-duration: 1.9s !important; animation-iteration-count: infinite !important; }
+  .loader-track span { animation-duration: 1.3s !important; animation-iteration-count: infinite !important; }
+  .loader-wordmark, .loader-caption { animation-duration: 1s !important; animation-iteration-count: 1 !important; }
 }
