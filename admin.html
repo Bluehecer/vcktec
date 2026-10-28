@@ -103,6 +103,7 @@
               <label>Event cover image<input name="cover" type="file" accept="image/jpeg,image/png,image/webp,image/gif"><span class="field-hint">JPG, PNG, WebP, or GIF, up to 8 MB. Published covers upload to Cloudinary; configure its unsigned preset first.</span></label>
               <div class="upload-preview" id="event-cover-preview" hidden></div>
               <div class="form-row"><button class="button button-primary" type="submit">Publish event</button><button class="button button-outline" type="button" id="cancel-event-edit" hidden>Cancel edit</button></div>
+              <p class="form-message" id="event-save-status" role="status" aria-live="polite" hidden></p>
             </form></section>
             <section class="panel-card"><p class="section-kicker">PUBLISHED EVENTS</p><div class="managed-list content-manager-list" id="managed-events"></div></section>
           </div>

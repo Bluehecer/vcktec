@@ -21,6 +21,7 @@ import { db, isFirebaseConfigured, storage } from "./firebase.js";
 const gate = document.querySelector("#dashboard-gate");
 const dashboard = document.querySelector("#dashboard-content");
 const dashboardMessage = document.querySelector("#dashboard-message");
+const eventSaveStatus = document.querySelector("#event-save-status");
 const managerRoles = new Set(["owner", "president", "editor"]);
 const roleManagers = new Set(["owner", "president"]);
 const imageTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -33,6 +34,12 @@ function setMessage(message, isError = false) {
   dashboardMessage.textContent = message;
   dashboardMessage.classList.toggle("is-error", isError);
   if (message) window.vcktecToast?.(message, isError ? "error" : "success");
+}
+
+function setEventSaveStatus(message, isError = false) {
+  eventSaveStatus.textContent = message;
+  eventSaveStatus.classList.toggle("is-error", isError);
+  eventSaveStatus.hidden = !message;
 }
 
 function showGate(title, copy, showLoginLink = false) {
@@ -389,7 +396,10 @@ async function saveEvent(event) {
     if (currentProfile.role === "editor" && !eventId) throw new Error("Editors can edit published events. New events must be submitted for approval.");
     if (cover?.size) {
       validateImage(cover);
-      uploaded = await uploadEventCover(cover);
+      setEventSaveStatus("Uploading event cover to Cloudinary… 0%");
+      uploaded = await uploadEventCover(cover, (percent) => {
+        setEventSaveStatus(`Uploading event cover to Cloudinary… ${percent}%`);
+      });
     } else if (!eventId) throw new Error("Choose a cover image for the new event.");
     const eventData = readEventForm(form);
     if (uploaded) {
@@ -397,6 +407,7 @@ async function saveEvent(event) {
       eventData.coverImagePublicId = uploaded.publicId;
       eventData.coverStoragePath = "";
     }
+    setEventSaveStatus("Saving event details to Firebase…");
     if (eventId) {
       eventData.updatedAt = serverTimestamp();
       await updateDoc(doc(db, "events", eventId), eventData);
@@ -407,23 +418,30 @@ async function saveEvent(event) {
         catch (error) { console.error("Could not remove the replaced event cover:", error); }
       }
       setMessage("Event details updated.");
+      setEventSaveStatus("Event updated.");
     } else {
       eventData.createdAt = serverTimestamp();
       await addDoc(collection(db, "events"), eventData);
       saved = true;
       setMessage("Event published.");
+      setEventSaveStatus("Event published.");
     }
     resetEventForm();
+    if (eventSaveStatus.textContent) setEventSaveStatus("Refreshing the event list…");
     try { await loadEvents(); }
     catch (error) {
       console.error("The event was saved, but the event list could not be refreshed:", error);
       setMessage("Event saved, but the event list could not be refreshed. Reload the dashboard to see it.", true);
+      setEventSaveStatus("Saved successfully, but the event list could not be refreshed. Reload the dashboard.", true);
     }
+    if (!eventSaveStatus.classList.contains("is-error")) setEventSaveStatus("Done. Event is saved.");
   } catch (error) {
     if (uploaded && !saved) console.error("The event cover uploaded to Cloudinary but the event was not saved; remove the unused asset if needed:", uploaded.publicId);
     console.error("Could not save the VCKTEC event:", error);
     const message = error.message || "The event could not be saved.";
-    setMessage(uploaded && !saved ? `${message} The uploaded Cloudinary cover may need manual cleanup.` : message, true);
+    const visibleMessage = uploaded && !saved ? `${message} The uploaded Cloudinary cover may need manual cleanup.` : message;
+    setMessage(visibleMessage, true);
+    setEventSaveStatus(visibleMessage, true);
   }
 }
 
