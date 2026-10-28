@@ -119,29 +119,37 @@ function isVideo(item) {
   return item.mediaType === "video" || Boolean(item.videoUrl);
 }
 
+function mediaCaption(item) {
+  const caption = String(item.caption || "").trim();
+  const isUploadFilename = /^(?:whatsapp(?:\s+(?:image|video))?|img[-_ ]?\d{4,}|vid[-_ ]?\d{4,}|pxl[_-]?\d+|dsc[_-]?\d+|image\s*\(\d+\)|video\s*\(\d+\))/i.test(caption);
+  return isUploadFilename ? "" : caption;
+}
+
 function mediaElement(item, className = "") {
   const url = safeUrl(mediaUrl(item));
   if (!url) return null;
+  const caption = mediaCaption(item);
   if (isVideo(item)) {
     const video = element("video", className);
     video.src = url;
     video.controls = true;
     video.preload = "metadata";
     video.playsInline = true;
-    video.setAttribute("aria-label", item.caption || item.album || "VCKTEC event video");
+    video.setAttribute("aria-label", caption || item.album || "VCKTEC event video");
     return video;
   }
   const image = element("img", className);
   image.src = url;
-  image.alt = item.caption || item.album || "VCKTEC event photo";
+  image.alt = caption || item.album || "VCKTEC event photo";
   image.loading = "lazy";
   return image;
 }
 
 function mediaButton(item) {
+  const captionText = mediaCaption(item);
   const button = element("button", "media-card");
   button.type = "button";
-  button.setAttribute("aria-label", `Open ${isVideo(item) ? "video" : "photo"}: ${item.caption || item.album || "VCKTEC moment"}`);
+  button.setAttribute("aria-label", `Open ${isVideo(item) ? "video" : "photo"}${captionText ? `: ${captionText}` : ` from ${item.album || "VCKTEC"}`}`);
   const media = mediaElement(item, "media-card-asset");
   if (media) {
     if (media.tagName === "VIDEO") {
@@ -151,8 +159,7 @@ function mediaButton(item) {
       button.append(element("span", "video-play media-play", "▶"));
     } else button.append(media);
   }
-  const caption = element("span", "media-card-caption", item.caption || (isVideo(item) ? "Watch video" : "VCKTEC moment"));
-  button.append(caption);
+  if (captionText) button.append(element("span", "media-card-caption", captionText));
   button.addEventListener("click", () => openViewer(item));
   return button;
 }
@@ -188,12 +195,13 @@ function openViewer(item) {
   wireViewer(dialog);
   const content = dialog.querySelector("#dialog-content");
   content.replaceChildren();
+  const caption = mediaCaption(item);
   const media = mediaElement(item, "dialog-media");
   if (media) content.append(media);
-  if (item.caption || item.album) {
+  if (caption || item.album) {
     const copy = element("div", "dialog-copy");
     if (item.album) copy.append(element("p", "section-kicker", item.album));
-    if (item.caption) copy.append(element("p", "", item.caption));
+    if (caption) copy.append(element("p", "", caption));
     content.append(copy);
   }
   dialog.showModal();
@@ -376,6 +384,7 @@ async function loadGallery() {
     }
     const selectedAlbum = new URLSearchParams(location.search).get("album");
     const selectedMedia = eventId ? media : (selectedAlbum ? media.filter((item) => item.album === selectedAlbum) : media);
+    heading.querySelector("p:last-child").textContent = `${selectedMedia.length} ${selectedMedia.length === 1 ? "photo or video" : "photos and videos"} from this collection.`;
     renderGalleryItems(selectedMedia, mediaContainer);
     return;
   }

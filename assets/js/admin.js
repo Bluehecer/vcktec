@@ -324,7 +324,7 @@ function bindMemberSubmissionForms() {
       uploads.forEach((upload) => {
         batch.set(doc(collection(db, "contentSubmissions")), submissionRecord("media", {
           album: stringValue(data, "album"),
-          caption: stringValue(data, "caption") || upload.file.name.replace(/\.[^.]+$/, ""),
+          caption: stringValue(data, "caption"),
           mediaUrl: upload.url,
           mediaPublicId: upload.publicId,
           mediaType: fileType(upload.file),
@@ -525,7 +525,7 @@ async function uploadGalleryFiles(form) {
       batch.set(doc(collection(db, "gallery")), {
         album,
         eventId,
-        caption: caption || asset.file.name.replace(/\.[^.]+$/, ""),
+        caption,
         mediaUrl: asset.url,
         mediaPublicId: asset.publicId,
         mediaType: fileType(asset.file),
