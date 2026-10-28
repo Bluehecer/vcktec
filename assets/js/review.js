@@ -9,12 +9,14 @@ import {
   where,
   writeBatch
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { deleteObject, ref } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
+import { deleteObject, getBlob, ref } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { subscribeToAccess } from "./auth.js";
+import { uploadEventCover } from "./cloudinary.js";
 import { auth, db, isFirebaseConfigured, storage } from "./firebase.js";
 
 let reviewer = null;
+const reviewPreviewUrls = [];
 
 function setMessage(text, isError = false) {
   const target = document.querySelector("#review-message");
@@ -45,7 +47,7 @@ function showGate(title, copy, login = false) {
   window.dispatchEvent(new Event("vcktec:page-ready"));
 }
 
-function makeReviewCard(entry) {
+async function makeReviewCard(entry) {
   const data = entry.data();
   const card = document.createElement("article");
   card.className = "review-submission-card";
@@ -81,7 +83,16 @@ function makeReviewCard(entry) {
     });
     card.append(sourceList);
   }
-  const mediaUrl = data.coverImageUrl || data.imageUrl || data.mediaUrl;
+  let mediaUrl = data.coverImageUrl || data.imageUrl || data.mediaUrl;
+  if (!mediaUrl && data.type === "event" && data.coverStoragePath) {
+    try {
+      mediaUrl = URL.createObjectURL(await getBlob(ref(storage, data.coverStoragePath)));
+      reviewPreviewUrls.push(mediaUrl);
+    } catch (error) {
+      console.error("Could not load a private event cover preview:", error);
+      card.append(textNode("p", "The private event cover preview could not be loaded."));
+    }
+  }
   if (mediaUrl) {
     const media = data.mediaType === "video"
       ? document.createElement("video")
@@ -118,12 +129,18 @@ function actionButton(label, handler, className) {
   button.type = "button";
   button.className = className;
   button.textContent = label;
-  button.addEventListener("click", handler);
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try { await handler(); }
+    finally { button.disabled = false; }
+  });
   return button;
 }
 
 async function loadQueue() {
   const container = document.querySelector("#content-review-queue");
+  reviewPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+  reviewPreviewUrls.length = 0;
   container.replaceChildren(emptyNote("Loading member submissions…"));
   const snapshot = await getDocs(query(collection(db, "contentSubmissions"), where("status", "==", "pending")));
   const submissions = [...snapshot.docs].sort((first, second) => {
@@ -131,9 +148,12 @@ async function loadQueue() {
     const b = second.data().createdAt;
     return (b?.toMillis?.() || 0) - (a?.toMillis?.() || 0);
   });
-  container.replaceChildren();
-  if (!submissions.length) container.append(emptyNote("No member submissions are waiting for approval."));
-  submissions.forEach((entry) => container.append(makeReviewCard(entry)));
+  if (!submissions.length) {
+    container.replaceChildren(emptyNote("No member submissions are waiting for approval."));
+    return;
+  }
+  const cards = await Promise.all(submissions.map(makeReviewCard));
+  container.replaceChildren(...cards);
 }
 
 function publicCollectionFor(type) {
@@ -143,7 +163,7 @@ function publicCollectionFor(type) {
   throw new Error("This submission type cannot be published.");
 }
 
-function publicContent(data) {
+function publicContent(data, eventCover = null) {
   if (data.type === "event") {
     return {
       title: data.title,
@@ -155,8 +175,9 @@ function publicContent(data) {
       endTime: data.endTime || "",
       description: data.description,
       tags: data.tags || [],
-      coverImageUrl: data.coverImageUrl || "",
-      coverStoragePath: data.coverStoragePath || "",
+      coverImageUrl: eventCover?.url || data.coverImageUrl || "",
+      coverImagePublicId: eventCover?.publicId || "",
+      coverStoragePath: eventCover ? "" : data.coverStoragePath || "",
       createdAt: serverTimestamp(),
       createdBy: data.submittedBy,
       createdByName: data.submittedByName
@@ -196,24 +217,38 @@ async function approveSubmission(entry) {
   const data = entry.data();
   const publicRef = doc(collection(db, publicCollectionFor(data.type)));
   const batch = writeBatch(db);
-  batch.set(publicRef, {
-    ...publicContent(data),
-    submissionId: entry.id
-  });
-  batch.update(doc(db, "contentSubmissions", entry.id), {
-    status: "approved",
-    reviewedBy: reviewer.uid,
-    reviewedByName: reviewer.name || reviewer.email || "VCKTEC editor",
-    reviewedAt: serverTimestamp(),
-    publishedContentId: publicRef.id
-  });
+  let eventCover = null;
   try {
+    if (data.type === "event" && data.coverStoragePath) {
+      eventCover = await uploadEventCover(await getBlob(ref(storage, data.coverStoragePath)));
+    }
+    batch.set(publicRef, {
+      ...publicContent(data, eventCover),
+      submissionId: entry.id
+    });
+    batch.update(doc(db, "contentSubmissions", entry.id), {
+      status: "approved",
+      reviewedBy: reviewer.uid,
+      reviewedByName: reviewer.name || reviewer.email || "VCKTEC editor",
+      reviewedAt: serverTimestamp(),
+      publishedContentId: publicRef.id
+    });
     await batch.commit();
+    if (eventCover && data.coverStoragePath) {
+      try { await deleteObject(ref(storage, data.coverStoragePath)); }
+      catch (error) { console.error("Event published, but its private review cover could not be removed:", error); }
+    }
     setMessage("Submission approved and published.");
-    await loadQueue();
+    try { await loadQueue(); }
+    catch (error) {
+      console.error("Submission published, but the review queue could not be refreshed:", error);
+      setMessage("Submission published, but the review queue could not be refreshed. Reload the page to see the updated queue.", true);
+    }
   } catch (error) {
     console.error("Could not approve the VCKTEC member submission:", error);
-    setMessage(error.message || "The submission could not be published.", true);
+    const message = error.message || "The submission could not be published.";
+    if (eventCover) console.error("The event cover uploaded to Cloudinary but was not published; remove the unused asset if needed:", eventCover.publicId);
+    setMessage(eventCover ? `${message} The uploaded Cloudinary cover may need manual cleanup.` : message, true);
   }
 }
 
