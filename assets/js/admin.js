@@ -15,7 +15,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 import { deleteObject, getDownloadURL, ref, uploadBytes } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
 import { subscribeToAccess } from "./auth.js";
-import { uploadEventCover } from "./cloudinary.js";
+import { uploadEventCover } from "./cloudinary.js?v=20261028-publish2";
 import { db, isFirebaseConfigured, storage } from "./firebase.js";
 
 const gate = document.querySelector("#dashboard-gate");
