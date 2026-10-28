@@ -50,7 +50,7 @@ service cloud.firestore {
 
     function validAnnouncement(data) {
       return data.keys().hasOnly([
-          'title', 'message', 'imageUrl', 'imageStoragePath', 'destinationType',
+          'title', 'message', 'imageUrl', 'imageStoragePath', 'imagePublicId', 'destinationType',
           'destinationId', 'destinationLabel', 'linkText', 'startsAt', 'expiresAt',
           'active', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'updatedByName'
         ])
@@ -62,7 +62,9 @@ service cloud.firestore {
         && data.message.size() <= 600
         && data.imageUrl is string
         && (data.imageUrl == '' || data.imageUrl.matches('https://.*'))
-        && data.imageStoragePath is string
+        && (!data.keys().hasAny(['imageStoragePath']) || data.imageStoragePath is string)
+        && (!data.keys().hasAny(['imagePublicId'])
+          || (data.imagePublicId is string && data.imagePublicId.size() <= 255))
         && data.destinationType in [
           'none', 'home', 'events', 'gallery', 'weekly', 'about', 'board',
           'community', 'event', 'album', 'weeklyPost'
@@ -233,7 +235,8 @@ service cloud.firestore {
         && request.resource.data.caption is string
         && request.resource.data.imageUrl is string
         && request.resource.data.imageUrl.matches('https://.*')
-        && request.resource.data.storagePath is string;
+        && request.resource.data.mediaPublicId is string
+        && request.resource.data.mediaPublicId.size() > 0;
       allow read: if isContentApprover()
         || (isApprovedMember() && resource.data.submittedBy == request.auth.uid);
       allow update: if isContentApprover()
@@ -267,9 +270,9 @@ service cloud.firestore {
       allow create: if isApprovedMember()
         && request.resource.data.keys().hasOnly([
           'type', 'title', 'topic', 'venue', 'date', 'time', 'description', 'tags',
-          'coverImageUrl', 'coverStoragePath', 'excerpt', 'sources', 'sourceUrl',
-          'imageUrl', 'imageStoragePath', 'album', 'caption', 'eventId', 'mediaUrl',
-          'mediaType', 'storagePath', 'submittedBy', 'submittedByName', 'status', 'createdAt'
+          'coverImageUrl', 'coverImagePublicId', 'excerpt', 'sources', 'sourceUrl',
+          'imageUrl', 'imagePublicId', 'album', 'caption', 'eventId', 'mediaUrl',
+          'mediaType', 'mediaPublicId', 'submittedBy', 'submittedByName', 'status', 'createdAt'
         ])
         && request.resource.data.submittedBy == request.auth.uid
         && request.resource.data.submittedByName is string
@@ -287,9 +290,10 @@ service cloud.firestore {
             && request.resource.data.description is string
             && request.resource.data.description.size() <= 6000
             && request.resource.data.tags is list
-            && (!request.resource.data.keys().hasAny(['coverImageUrl'])
-              || request.resource.data.coverImageUrl == ''
-              || request.resource.data.coverImageUrl.matches('https://.*')))
+            && request.resource.data.coverImageUrl is string
+            && (request.resource.data.coverImageUrl == ''
+              || request.resource.data.coverImageUrl.matches('https://.*'))
+            && request.resource.data.coverImagePublicId is string)
           || (request.resource.data.type == 'weekly'
             && request.resource.data.title is string
             && request.resource.data.title.size() > 0
@@ -303,7 +307,7 @@ service cloud.firestore {
             && request.resource.data.sources is list
             && request.resource.data.sourceUrl.matches('https://.*')
             && request.resource.data.imageUrl.matches('https://.*')
-            && request.resource.data.imageStoragePath is string)
+            && request.resource.data.imagePublicId is string)
           || (request.resource.data.type == 'media'
             && request.resource.data.album is string
             && request.resource.data.album.size() > 0
@@ -311,7 +315,7 @@ service cloud.firestore {
             && request.resource.data.caption is string
             && request.resource.data.mediaUrl.matches('https://.*')
             && request.resource.data.mediaType in ['image', 'video']
-            && request.resource.data.storagePath is string)
+            && request.resource.data.mediaPublicId is string)
         );
       allow read: if isContentApprover()
         || (isApprovedMember() && resource.data.submittedBy == request.auth.uid);
@@ -339,7 +343,7 @@ service cloud.firestore {
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.createdBy == resource.data.createdBy
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'title', 'message', 'imageUrl', 'imageStoragePath', 'destinationType',
+          'title', 'message', 'imageUrl', 'imageStoragePath', 'imagePublicId', 'destinationType',
           'destinationId', 'destinationLabel', 'linkText', 'startsAt', 'expiresAt',
           'active', 'updatedAt', 'updatedBy', 'updatedByName'
         ]);

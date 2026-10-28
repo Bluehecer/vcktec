@@ -8,7 +8,7 @@ import {
   updateProfile
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { doc, getDoc, serverTimestamp, setDoc } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { auth, db, isFirebaseConfigured } from "./firebase.js";
+import { auth, db, isFirebaseConfigured } from "./firebase.js?v=20261028-cloudinary-media1";
 
 let latestAccess = null;
 const accessListeners = new Set();

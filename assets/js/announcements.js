@@ -1,5 +1,5 @@
 import { collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { db, isFirebaseConfigured } from "./firebase.js";
+import { db, isFirebaseConfigured } from "./firebase.js?v=20261028-cloudinary-media1";
 
 const seenKey = "vcktec-seen-announcements";
 const allowedPages = new Set(["home", "events", "gallery", "weekly", "about", "board", "community"]);

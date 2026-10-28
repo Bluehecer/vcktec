@@ -9,11 +9,10 @@ import {
   serverTimestamp,
   updateDoc
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { deleteObject, ref } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { subscribeToAccess } from "./auth.js";
-import { auth, db, isFirebaseConfigured, storage } from "./firebase.js";
-import { uploadCloudinaryImage } from "./cloudinary.js";
+import { auth, db, isFirebaseConfigured } from "./firebase.js?v=20261028-cloudinary-media1";
+import { uploadCloudinaryImage } from "./cloudinary.js?v=20261028-cloudinary-media1";
 
 const managerRoles = ["owner", "president", "editor"];
 const form = document.querySelector("#announcement-form");
@@ -96,7 +95,7 @@ async function populateDestinationItems(type, selectedId = "") {
 function resetForm() {
   form.reset();
   form.elements.announcementId.value = "";
-  form.elements.previousImagePath.value = "";
+  form.elements.previousImagePublicId.value = "";
   delete form.dataset.currentImageUrl;
   form.elements.active.checked = true;
   form.elements.destinationId.required = false;
@@ -173,15 +172,10 @@ form.addEventListener("submit", async (event) => {
   setSaveStatus("Preparing announcement…");
   let uploadedPublicId = "";
   let saved = false;
-  let cleanupFailed = false;
   let firestoreWaitTimer = null;
   try {
     const id = String(data.get("announcementId") || "");
-    const oldImageStoragePath = String(data.get("previousImagePath") || "");
-    const oldImagePublicId = oldImageStoragePath.startsWith("cloudinary:")
-      ? oldImageStoragePath.slice("cloudinary:".length)
-      : "";
-    const oldImagePath = oldImagePublicId ? "" : oldImageStoragePath;
+    const oldImagePublicId = String(data.get("previousImagePublicId") || "");
     let imageUrl = String(form.dataset.currentImageUrl || "");
     if (file) {
       setSaveStatus("Uploading announcement image to Cloudinary… 0%");
@@ -198,9 +192,8 @@ form.addEventListener("submit", async (event) => {
       title: String(data.get("title") || "").trim(),
       message: String(data.get("message") || "").trim(),
       imageUrl,
-      imageStoragePath: file
-        ? (uploadedPublicId ? `cloudinary:${uploadedPublicId}` : "")
-        : oldImageStoragePath,
+      imageStoragePath: "",
+      imagePublicId: uploadedPublicId || oldImagePublicId,
       destinationType: type,
       destinationId: ["event", "album", "weeklyPost"].includes(type) ? destinationId : "",
       destinationLabel,
@@ -226,19 +219,10 @@ form.addEventListener("submit", async (event) => {
     window.clearTimeout(firestoreWaitTimer);
     firestoreWaitTimer = null;
     saved = true;
-    if (file && oldImagePath) {
-      try { await deleteObject(ref(storage, oldImagePath)); }
-      catch (error) {
-        cleanupFailed = true;
-        console.error("Announcement saved, but the replaced image could not be removed:", error);
-      }
-    }
     const successMessage = id ? "Announcement updated." : "Announcement published.";
-    setMessage(cleanupFailed
-      ? "Announcement saved, but the previous image could not be cleaned up. Ask an administrator to check Firebase Storage."
-      : (uploadedPublicId && oldImagePublicId
+    setMessage(uploadedPublicId && oldImagePublicId
         ? `${successMessage} The previous Cloudinary image remains in the media library.`
-        : successMessage), cleanupFailed);
+        : successMessage);
     setSaveStatus(id ? "Announcement updated." : "Announcement published.");
     resetForm();
     setSaveStatus("Refreshing the announcement list…");
@@ -270,7 +254,10 @@ form.addEventListener("submit", async (event) => {
 function editAnnouncement(id, data) {
   form.reset();
   form.elements.announcementId.value = id;
-  form.elements.previousImagePath.value = data.imageStoragePath || "";
+  form.elements.previousImagePublicId.value = data.imagePublicId
+    || (typeof data.imageStoragePath === "string" && data.imageStoragePath.startsWith("cloudinary:")
+      ? data.imageStoragePath.slice("cloudinary:".length)
+      : "");
   form.elements.title.value = data.title || "";
   form.elements.message.value = data.message || "";
   form.elements.linkText.value = data.linkText || "";
@@ -362,21 +349,9 @@ function makeAnnouncementItem(id, data) {
     try {
       await deleteDoc(doc(db, "announcements", id));
       deleted = true;
-      let cleanupFailed = false;
-      const cloudinaryImage = typeof data.imageStoragePath === "string"
-        && data.imageStoragePath.startsWith("cloudinary:");
-      if (data.imageStoragePath && !cloudinaryImage) {
-        try { await deleteObject(ref(storage, data.imageStoragePath)); }
-        catch (error) {
-          cleanupFailed = true;
-          console.error("Announcement deleted, but its image could not be removed:", error);
-        }
-      }
-      setMessage(cleanupFailed
-        ? "Announcement deleted, but its image could not be cleaned up. Ask an administrator to check Firebase Storage."
-        : (cloudinaryImage
-          ? "Announcement deleted. Its Cloudinary image remains in the media library."
-          : "Announcement deleted."), cleanupFailed);
+      setMessage(data.imagePublicId
+        ? `Announcement deleted. Cloudinary asset ${data.imagePublicId} remains in the media library.`
+        : "Announcement deleted. Any existing image file remains in its original storage.");
       await loadAnnouncements();
     } catch (error) {
       console.error("Could not delete the VCKTEC announcement:", error);
