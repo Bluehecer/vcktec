@@ -13,7 +13,7 @@ import {
   where,
   writeBatch
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { deleteObject, getDownloadURL, ref, uploadBytes } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
+import { deleteObject, getDownloadURL, ref, uploadBytesResumable } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
 import { subscribeToAccess } from "./auth.js";
 import { uploadEventCover } from "./cloudinary.js?v=20261028-publish2";
 import { db, isFirebaseConfigured, storage } from "./firebase.js";
@@ -40,6 +40,37 @@ function setEventSaveStatus(message, isError = false) {
   eventSaveStatus.textContent = message;
   eventSaveStatus.classList.toggle("is-error", isError);
   eventSaveStatus.hidden = !message;
+}
+
+function setUploadStatus(message) {
+  dashboardMessage.textContent = message;
+  dashboardMessage.classList.remove("is-error");
+}
+
+async function ensureStorageBucket() {
+  const bucket = storage?.app?.options?.storageBucket;
+  if (!bucket) throw new Error("Firebase Storage has no configured bucket. Set storageBucket in assets/js/firebase.js.");
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(
+      `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket)}/o?maxResults=1`,
+      { cache: "no-store", signal: controller.signal }
+    );
+    if (response.status === 404) {
+      throw new Error(`Firebase Storage bucket "${bucket}" was not found. Create a Storage bucket in Firebase Console, then set its exact name in assets/js/firebase.js.`);
+    }
+    if (!response.ok && response.status !== 401 && response.status !== 403) {
+      throw new Error(`Firebase Storage could not be checked (${response.status}). Try again or check the Firebase project.`);
+    }
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("Checking Firebase Storage timed out. Check your connection and Firebase project.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 function showGate(title, copy, showLoginLink = false) {
@@ -118,14 +149,49 @@ function fileType(file) {
   return file.type.startsWith("video/") ? "video" : "image";
 }
 
-async function uploadAsset(file, folder) {
+function uploadStorageFile(storageRef, file, onProgress) {
+  const task = uploadBytesResumable(storageRef, file, { contentType: file.type });
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let unsubscribe = () => {};
+    const timeout = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      unsubscribe();
+      task.cancel();
+      reject(new Error("The Firebase Storage upload timed out after 90 seconds. Check Storage setup and your connection."));
+    }, 90000);
+    unsubscribe = task.on("state_changed", (snapshot) => {
+      if (snapshot.totalBytes > 0) {
+        onProgress(Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100));
+      }
+    }, (error) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      unsubscribe();
+      reject(error);
+    }, () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      unsubscribe();
+      resolve(task.snapshot);
+    });
+  });
+}
+
+async function uploadAsset(file, folder, onProgress = () => {}) {
   validateFile(file);
+  setUploadStatus("Checking Firebase Storage…");
+  await ensureStorageBucket();
   const uploadName = `${folder}-${Date.now()}-${escapeFileName(file.name)}`;
   const path = folder === "submissions"
     ? `submissions/${currentUser.uid}/${uploadName}`
     : `public/${currentUser.uid}/${uploadName}`;
   const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file, { contentType: file.type });
+  onProgress(0);
+  await uploadStorageFile(storageRef, file, onProgress);
   try {
     return { url: await getDownloadURL(storageRef), path };
   } catch (error) {
@@ -140,11 +206,14 @@ async function removeStoredAsset(path) {
   await deleteObject(ref(storage, path));
 }
 
-async function uploadPrivateEventCover(file) {
+async function uploadPrivateEventCover(file, onProgress = () => {}) {
   validateImage(file);
+  setUploadStatus("Checking Firebase Storage…");
+  await ensureStorageBucket();
   const uploadName = `event-cover-${Date.now()}-${escapeFileName(file.name)}`;
   const path = `submissions/${currentUser.uid}/${uploadName}`;
-  await uploadBytes(ref(storage, path), file, { contentType: file.type });
+  onProgress(0);
+  await uploadStorageFile(ref(storage, path), file, onProgress);
   return { path };
 }
 
@@ -251,8 +320,11 @@ function bindMemberSubmissionForms() {
     try {
       const cover = data.get("cover");
       if (cover?.size) {
-        upload = await uploadPrivateEventCover(cover);
+        upload = await uploadPrivateEventCover(cover, (percent) => {
+          setUploadStatus(`Uploading private event cover… ${percent}%`);
+        });
       }
+      setUploadStatus("Sending event proposal to Firebase for review…");
       await addDoc(collection(db, "contentSubmissions"), submissionRecord("event", {
         title: stringValue(data, "title"),
         topic: stringValue(data, "topic"),
@@ -292,7 +364,10 @@ function bindMemberSubmissionForms() {
         if (url.protocol !== "https:") throw new Error("Use HTTPS links for all article sources.");
         return url.href;
       });
-      upload = await uploadAsset(data.get("image"), "submissions");
+      upload = await uploadAsset(data.get("image"), "submissions", (percent) => {
+        setUploadStatus(`Uploading private Weekly cover… ${percent}%`);
+      });
+      setUploadStatus("Sending Weekly post to Firebase for review…");
       await addDoc(collection(db, "contentSubmissions"), submissionRecord("weekly", {
         title: stringValue(data, "title"),
         topic: stringValue(data, "topic"),
@@ -327,7 +402,14 @@ function bindMemberSubmissionForms() {
     try {
       if (!files.length) throw new Error("Choose at least one photo or video.");
       if (files.length > 20) throw new Error("Submit no more than 20 photos or videos at a time.");
-      for (const file of files) uploads.push({ file, ...(await uploadAsset(file, "submissions")) });
+      for (const [index, file] of files.entries()) {
+        const label = fileType(file) === "video" ? "video" : "photo";
+        const upload = await uploadAsset(file, "submissions", (percent) => {
+          setUploadStatus(`Uploading private ${label} ${index + 1} of ${files.length}… ${percent}%`);
+        });
+        uploads.push({ file, ...upload });
+      }
+      setUploadStatus("Sending media to Firebase for review…");
       const batch = writeBatch(db);
       uploads.forEach((upload) => {
         batch.set(doc(collection(db, "contentSubmissions")), submissionRecord("media", {
@@ -393,6 +475,7 @@ async function saveEvent(event) {
   let uploaded = null;
   let saved = false;
   try {
+    setEventSaveStatus("Preparing event…");
     if (currentProfile.role === "editor" && !eventId) throw new Error("Editors can edit published events. New events must be submitted for approval.");
     if (cover?.size) {
       validateImage(cover);
@@ -530,10 +613,14 @@ async function uploadGalleryFiles(form) {
   const eventId = stringValue(data, "eventId");
   const uploaded = [];
   try {
-    for (const file of files) {
-      const asset = await uploadAsset(file, "gallery");
+    for (const [index, file] of files.entries()) {
+      const label = fileType(file) === "video" ? "video" : "photo";
+      const asset = await uploadAsset(file, "gallery", (percent) => {
+        setUploadStatus(`Uploading gallery ${label} ${index + 1} of ${files.length}… ${percent}%`);
+      });
       uploaded.push({ ...asset, file });
     }
+    setUploadStatus("Saving gallery items to Firebase…");
     const batch = writeBatch(db);
     uploaded.forEach((asset) => {
       batch.set(doc(collection(db, "gallery")), {
@@ -643,6 +730,7 @@ async function saveWeeklyPost(event) {
   let uploaded = null;
   let saved = false;
   try {
+    setUploadStatus("Preparing Weekly post…");
     if (currentProfile.role === "editor" && !postId) throw new Error("Editors can edit published Weekly posts. New posts must be submitted for approval.");
     if (!sources.length) throw new Error("Add at least one trusted source link.");
     const sourceUrls = sources.map((source) => {
@@ -652,7 +740,9 @@ async function saveWeeklyPost(event) {
     });
     if (imageFile?.size) {
       validateImage(imageFile);
-      uploaded = await uploadAsset(imageFile, "weekly");
+      uploaded = await uploadAsset(imageFile, "weekly", (percent) => {
+        setUploadStatus(`Uploading Weekly cover… ${percent}%`);
+      });
     } else if (!postId) throw new Error("Choose a cover image for the new post.");
 
     const post = {
@@ -664,6 +754,7 @@ async function saveWeeklyPost(event) {
       sourceUrl: sourceUrls[0],
       sources: sourceUrls
     };
+    setUploadStatus("Saving Weekly post to Firebase…");
     if (uploaded) {
       post.imageUrl = uploaded.url;
       post.imageStoragePath = uploaded.path;
@@ -678,7 +769,6 @@ async function saveWeeklyPost(event) {
         try { await removeStoredAsset(oldPath); }
         catch (error) { console.error("Could not remove the replaced Weekly cover:", error); }
       }
-      setMessage("Weekly post updated.");
     } else {
       post.authorName = currentProfile.name || currentUser.displayName || currentUser.email || "VCKTEC member";
       post.createdAt = serverTimestamp();
@@ -686,10 +776,11 @@ async function saveWeeklyPost(event) {
       post.createdBy = currentUser.uid;
       await addDoc(collection(db, "weeklyPosts"), post);
       saved = true;
-      setMessage("Weekly post published.");
     }
     resetWeeklyForm();
+    setUploadStatus("Refreshing Weekly posts…");
     await loadWeeklyPosts();
+    setMessage(postId ? "Weekly post updated." : "Weekly post published.");
   } catch (error) {
     if (uploaded && !saved) {
       try { await removeStoredAsset(uploaded.path); }
@@ -789,9 +880,12 @@ async function saveBoardProfile(event) {
   let uploaded = null;
   let saved = false;
   try {
+    setUploadStatus("Preparing board profile…");
     if (imageFile?.size) {
       validateImage(imageFile);
-      uploaded = await uploadAsset(imageFile, "board");
+      uploaded = await uploadAsset(imageFile, "board", (percent) => {
+        setUploadStatus(`Uploading board portrait… ${percent}%`);
+      });
     } else if (!memberId) throw new Error("Choose a portrait for the new board profile.");
     const profile = {
       name: stringValue(data, "name"),
@@ -800,6 +894,7 @@ async function saveBoardProfile(event) {
       order: Number(data.get("order"))
     };
     if (!Number.isInteger(profile.order) || profile.order < 1 || profile.order > 100) throw new Error("Display order must be a number from 1 to 100.");
+    setUploadStatus("Saving board profile to Firebase…");
     if (uploaded) {
       profile.imageUrl = uploaded.url;
       profile.imageStoragePath = uploaded.path;
@@ -813,16 +908,16 @@ async function saveBoardProfile(event) {
         try { await removeStoredAsset(previousPath); }
         catch (error) { console.error("Could not remove the replaced board portrait:", error); }
       }
-      setMessage("Board profile updated.");
     } else {
       profile.createdAt = serverTimestamp();
       profile.createdBy = currentUser.uid;
       await addDoc(collection(db, "boardMembers"), profile);
       saved = true;
-      setMessage("Board profile added.");
     }
     resetBoardForm();
+    setUploadStatus("Refreshing board profiles…");
     await loadBoardProfiles();
+    setMessage(memberId ? "Board profile updated." : "Board profile added.");
   } catch (error) {
     if (uploaded && !saved) {
       try { await removeStoredAsset(uploaded.path); }
@@ -1139,11 +1234,13 @@ function bindManagerForms() {
     event.preventDefault();
     const form = event.currentTarget;
     try {
+      setUploadStatus("Preparing gallery upload…");
       await uploadGalleryFiles(form);
       form.reset();
       clearFormPreview("gallery-form", "media", "gallery-preview");
-      setMessage("Photos and videos added to the album.");
+      setUploadStatus("Refreshing the gallery…");
       await loadGallery();
+      setMessage("Photos and videos added to the album.");
     } catch (error) {
       console.error("Could not publish the gallery media:", error);
       setMessage(error.message || "The gallery media could not be published.", true);
