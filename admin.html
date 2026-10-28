@@ -42,14 +42,14 @@
       <div class="dashboard-grid" id="member-tools">
         <section class="panel-card">
           <p class="section-kicker">EVENT SUBMISSION</p><h2>Propose an event.</h2>
-          <p class="panel-intro">Your event stays private until an owner, president, or editor approves it.</p>
+          <p class="panel-intro">Your event details stay in the review queue until an owner, president, or editor approves them.</p>
           <form id="member-event-form" class="form-stack">
             <label>Event title<input name="title" required maxlength="120"></label>
             <div class="form-row"><label>Topic<input name="topic" maxlength="60"></label><label>Venue<input name="venue" maxlength="120"></label></div>
             <div class="form-row"><label>Date<input name="date" type="date" required></label><label>Time<input name="time" type="time" required></label></div>
             <label>Full description<textarea name="description" rows="5" required maxlength="6000"></textarea></label>
             <label>Tags <span class="field-hint">Separate with commas</span><input name="tags" maxlength="240"></label>
-            <label>Cover image (optional)<input name="cover" type="file" accept="image/jpeg,image/png,image/webp,image/gif"><span class="field-hint">Kept private in Firebase Storage until approval, then moved to Cloudinary.</span></label>
+            <label>Cover image (optional)<input name="cover" type="file" accept="image/jpeg,image/png,image/webp,image/gif"><span class="field-hint">Uploaded to Cloudinary; the submission record stays in the review queue until approval.</span></label>
             <div class="upload-preview" id="member-event-preview" hidden></div>
             <button class="button button-outline" type="submit">Submit event for approval <span aria-hidden="true">→</span></button>
           </form>
@@ -71,7 +71,7 @@
         </section>
         <section class="panel-card">
           <p class="section-kicker">GALLERY MEDIA</p><h2>Upload photos or video.</h2>
-          <p class="panel-intro">Photos and videos are kept private until an owner, president, or editor approves them.</p>
+          <p class="panel-intro">Submission details stay in the review queue until an owner, president, or editor approves them. Cloudinary media is publicly reachable by its URL while pending.</p>
           <form id="member-media-form" class="form-stack">
             <label>Album or event name<input name="album" required maxlength="120"></label>
             <label>Media caption<input name="caption" maxlength="180"></label>
@@ -171,6 +171,6 @@
     </div>
   </main>
   <script type="module" src="assets/js/site-ui.js?v=20261028-publish2"></script><script type="module" src="assets/js/auth.js"></script>
-  <script type="module" src="assets/js/admin.js?v=20261028-storage-progress1"></script>
+  <script type="module" src="assets/js/admin.js?v=20261028-cloudinary-media1"></script>
 </body>
 </html>

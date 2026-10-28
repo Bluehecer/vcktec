@@ -18,7 +18,7 @@
         <section class="panel-card">
           <h2 id="announcement-form-heading">Create announcement.</h2>
           <form id="announcement-form" class="form-stack">
-            <input name="announcementId" type="hidden"><input name="previousImagePath" type="hidden">
+            <input name="announcementId" type="hidden"><input name="previousImagePublicId" type="hidden">
             <label>Headline<input name="title" maxlength="100" required placeholder="e.g. Robotics workshop this Friday"></label>
             <label>Message or caption<textarea name="message" rows="5" maxlength="600" required placeholder="Add the key details visitors should know."></textarea></label>
             <label>Optional image<input name="image" type="file" accept="image/jpeg,image/png,image/webp,image/gif"><span class="field-hint">JPG, PNG, WebP, or GIF. Maximum 8 MB.</span></label>
@@ -44,6 +44,6 @@
       </div>
     </section>
   </main>
-  <script type="module" src="assets/js/site-ui.js?v=20261028-publish2"></script><script type="module" src="assets/js/auth.js"></script><script type="module" src="assets/js/announcements-admin.js?v=20261028-cloudinary1"></script>
+  <script type="module" src="assets/js/site-ui.js?v=20261028-publish2"></script><script type="module" src="assets/js/auth.js"></script>  <script type="module" src="assets/js/announcements-admin.js?v=20261028-cloudinary-media1"></script>
 </body>
 </html>

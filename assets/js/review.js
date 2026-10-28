@@ -9,14 +9,11 @@ import {
   where,
   writeBatch
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { deleteObject, getBlob, ref } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { subscribeToAccess } from "./auth.js";
-import { uploadEventCover } from "./cloudinary.js?v=20261028-publish2";
-import { auth, db, isFirebaseConfigured, storage } from "./firebase.js";
+import { auth, db, isFirebaseConfigured } from "./firebase.js?v=20261028-cloudinary-media1";
 
 let reviewer = null;
-const reviewPreviewUrls = [];
 
 function setMessage(text, isError = false) {
   const target = document.querySelector("#review-message");
@@ -84,14 +81,8 @@ async function makeReviewCard(entry) {
     card.append(sourceList);
   }
   let mediaUrl = data.coverImageUrl || data.imageUrl || data.mediaUrl;
-  if (!mediaUrl && data.type === "event" && data.coverStoragePath) {
-    try {
-      mediaUrl = URL.createObjectURL(await getBlob(ref(storage, data.coverStoragePath)));
-      reviewPreviewUrls.push(mediaUrl);
-    } catch (error) {
-      console.error("Could not load a private event cover preview:", error);
-      card.append(textNode("p", "The private event cover preview could not be loaded."));
-    }
+  if (!mediaUrl && data.coverStoragePath) {
+    card.append(textNode("p", "This older submission has a Firebase Storage-only cover that cannot be previewed. Ask the member to resubmit it."));
   }
   if (mediaUrl) {
     const media = data.mediaType === "video"
@@ -139,8 +130,6 @@ function actionButton(label, handler, className) {
 
 async function loadQueue() {
   const container = document.querySelector("#content-review-queue");
-  reviewPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
-  reviewPreviewUrls.length = 0;
   container.replaceChildren(emptyNote("Loading member submissions…"));
   const snapshot = await getDocs(query(collection(db, "contentSubmissions"), where("status", "==", "pending")));
   const submissions = [...snapshot.docs].sort((first, second) => {
@@ -163,7 +152,7 @@ function publicCollectionFor(type) {
   throw new Error("This submission type cannot be published.");
 }
 
-function publicContent(data, eventCover = null) {
+function publicContent(data) {
   if (data.type === "event") {
     return {
       title: data.title,
@@ -175,9 +164,8 @@ function publicContent(data, eventCover = null) {
       endTime: data.endTime || "",
       description: data.description,
       tags: data.tags || [],
-      coverImageUrl: eventCover?.url || data.coverImageUrl || "",
-      coverImagePublicId: eventCover?.publicId || "",
-      coverStoragePath: eventCover ? "" : data.coverStoragePath || "",
+      coverImageUrl: data.coverImageUrl || "",
+      coverImagePublicId: data.coverImagePublicId || "",
       createdAt: serverTimestamp(),
       createdBy: data.submittedBy,
       createdByName: data.submittedByName
@@ -193,7 +181,7 @@ function publicContent(data, eventCover = null) {
       sourceUrl: data.sourceUrl,
       sources: data.sources || [],
       imageUrl: data.imageUrl,
-      imageStoragePath: data.imageStoragePath || "",
+      imagePublicId: data.imagePublicId || "",
       authorName: data.submittedByName || "VCKTEC member",
       createdBy: data.submittedBy,
       createdAt: serverTimestamp(),
@@ -206,7 +194,7 @@ function publicContent(data, eventCover = null) {
     eventId: data.eventId || "",
     mediaUrl: data.mediaUrl,
     mediaType: data.mediaType,
-    storagePath: data.storagePath,
+    mediaPublicId: data.mediaPublicId || "",
     createdAt: serverTimestamp(),
     createdBy: data.submittedBy,
     createdByName: data.submittedByName
@@ -217,13 +205,12 @@ async function approveSubmission(entry) {
   const data = entry.data();
   const publicRef = doc(collection(db, publicCollectionFor(data.type)));
   const batch = writeBatch(db);
-  let eventCover = null;
   try {
-    if (data.type === "event" && data.coverStoragePath) {
-      eventCover = await uploadEventCover(await getBlob(ref(storage, data.coverStoragePath)));
+    if (data.coverStoragePath && !data.coverImageUrl) {
+      throw new Error("This older submission's cover is stored only in Firebase Storage. Ask the member to resubmit it with the current upload form.");
     }
     batch.set(publicRef, {
-      ...publicContent(data, eventCover),
+      ...publicContent(data),
       submissionId: entry.id
     });
     batch.update(doc(db, "contentSubmissions", entry.id), {
@@ -234,10 +221,6 @@ async function approveSubmission(entry) {
       publishedContentId: publicRef.id
     });
     await batch.commit();
-    if (eventCover && data.coverStoragePath) {
-      try { await deleteObject(ref(storage, data.coverStoragePath)); }
-      catch (error) { console.error("Event published, but its private review cover could not be removed:", error); }
-    }
     setMessage("Submission approved and published.");
     try { await loadQueue(); }
     catch (error) {
@@ -246,9 +229,7 @@ async function approveSubmission(entry) {
     }
   } catch (error) {
     console.error("Could not approve the VCKTEC member submission:", error);
-    const message = error.message || "The submission could not be published.";
-    if (eventCover) console.error("The event cover uploaded to Cloudinary but was not published; remove the unused asset if needed:", eventCover.publicId);
-    setMessage(eventCover ? `${message} The uploaded Cloudinary cover may need manual cleanup.` : message, true);
+    setMessage(error.message || "The submission could not be published.", true);
   }
 }
 
@@ -260,7 +241,11 @@ async function rejectSubmission(entry) {
       reviewedByName: reviewer.name || reviewer.email || "VCKTEC editor",
       reviewedAt: serverTimestamp()
     });
-    setMessage("Submission rejected. It was not published.");
+    const data = entry.data();
+    const publicId = data.mediaPublicId || data.imagePublicId || data.coverImagePublicId;
+    setMessage(publicId
+      ? `Submission rejected. Cloudinary asset ${publicId} remains publicly reachable until removed in Cloudinary.`
+      : "Submission rejected. It was not published.");
     await loadQueue();
   } catch (error) {
     console.error("Could not reject the VCKTEC member submission:", error);
@@ -269,15 +254,14 @@ async function rejectSubmission(entry) {
 }
 
 async function deleteSubmission(entry) {
-  if (!window.confirm("Permanently delete this submission and its uploaded file?")) return;
+  if (!window.confirm("Permanently delete this submission? Uploaded Cloudinary media will remain in the Cloudinary library.")) return;
   try {
     await deleteDoc(doc(db, "contentSubmissions", entry.id));
-    const path = entry.data().storagePath || entry.data().coverStoragePath || entry.data().imageStoragePath;
-    if (path) {
-      try { await deleteObject(ref(storage, path)); }
-      catch (error) { console.error("Submission deleted, but its uploaded file could not be removed:", error); }
-    }
-    setMessage("Submission deleted.");
+    const data = entry.data();
+    const publicId = data.mediaPublicId || data.imagePublicId || data.coverImagePublicId;
+    setMessage(publicId
+      ? `Submission deleted. Cloudinary asset ${publicId} remains in the media library.`
+      : "Submission deleted.");
     await loadQueue();
   } catch (error) {
     console.error("Could not delete the VCKTEC member submission:", error);

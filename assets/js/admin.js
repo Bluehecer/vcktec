@@ -13,10 +13,9 @@ import {
   where,
   writeBatch
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { deleteObject, getDownloadURL, ref, uploadBytesResumable } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
 import { subscribeToAccess } from "./auth.js";
-import { uploadEventCover } from "./cloudinary.js?v=20261028-publish2";
-import { db, isFirebaseConfigured, storage } from "./firebase.js";
+import { uploadCloudinaryAsset, uploadEventCover } from "./cloudinary.js?v=20261028-cloudinary-media1";
+import { db, isFirebaseConfigured } from "./firebase.js?v=20261028-cloudinary-media1";
 
 const gate = document.querySelector("#dashboard-gate");
 const dashboard = document.querySelector("#dashboard-content");
@@ -47,42 +46,12 @@ function setUploadStatus(message) {
   dashboardMessage.classList.remove("is-error");
 }
 
-async function ensureStorageBucket() {
-  const bucket = storage?.app?.options?.storageBucket;
-  if (!bucket) throw new Error("Firebase Storage has no configured bucket. Set storageBucket in assets/js/firebase.js.");
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 10000);
-  try {
-    const response = await fetch(
-      `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket)}/o?maxResults=1`,
-      { cache: "no-store", signal: controller.signal }
-    );
-    if (response.status === 404) {
-      throw new Error(`Firebase Storage bucket "${bucket}" was not found. Create a Storage bucket in Firebase Console, then set its exact name in assets/js/firebase.js.`);
-    }
-    if (!response.ok && response.status !== 401 && response.status !== 403) {
-      throw new Error(`Firebase Storage could not be checked (${response.status}). Try again or check the Firebase project.`);
-    }
-  } catch (error) {
-    if (error.name === "AbortError") {
-      throw new Error("Checking Firebase Storage timed out. Check your connection and Firebase project.");
-    }
-    throw error;
-  } finally {
-    window.clearTimeout(timeout);
-  }
-}
-
 function showGate(title, copy, showLoginLink = false) {
   gate.hidden = false;
   dashboard.hidden = true;
   document.querySelector("#gate-title").textContent = title;
   document.querySelector("#gate-copy").textContent = copy;
   document.querySelector("#gate-link").hidden = !showLoginLink;
-}
-
-function escapeFileName(fileName) {
-  return fileName.replace(/[^a-zA-Z0-9._-]/g, "-").slice(-100) || "upload";
 }
 
 function validateFile(file) {
@@ -135,6 +104,13 @@ function stringValue(formData, key) {
   return String(formData.get(key) || "").trim();
 }
 
+function cloudinaryCleanupHint(assets) {
+  const publicIds = assets.map((asset) => asset?.publicId).filter(Boolean);
+  return publicIds.length
+    ? ` Cloudinary assets may need manual cleanup if not saved: ${publicIds.join(", ")}.`
+    : "";
+}
+
 function tagsValue(value) {
   return String(value || "").split(",").map((tag) => tag.trim()).filter(Boolean).slice(0, 10);
 }
@@ -149,72 +125,14 @@ function fileType(file) {
   return file.type.startsWith("video/") ? "video" : "image";
 }
 
-function uploadStorageFile(storageRef, file, onProgress) {
-  const task = uploadBytesResumable(storageRef, file, { contentType: file.type });
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    let unsubscribe = () => {};
-    const timeout = window.setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      unsubscribe();
-      task.cancel();
-      reject(new Error("The Firebase Storage upload timed out after 90 seconds. Check Storage setup and your connection."));
-    }, 90000);
-    unsubscribe = task.on("state_changed", (snapshot) => {
-      if (snapshot.totalBytes > 0) {
-        onProgress(Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100));
-      }
-    }, (error) => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timeout);
-      unsubscribe();
-      reject(error);
-    }, () => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timeout);
-      unsubscribe();
-      resolve(task.snapshot);
-    });
-  });
-}
-
-async function uploadAsset(file, folder, onProgress = () => {}) {
+async function uploadAsset(file, onProgress = () => {}) {
   validateFile(file);
-  setUploadStatus("Checking Firebase Storage…");
-  await ensureStorageBucket();
-  const uploadName = `${folder}-${Date.now()}-${escapeFileName(file.name)}`;
-  const path = folder === "submissions"
-    ? `submissions/${currentUser.uid}/${uploadName}`
-    : `public/${currentUser.uid}/${uploadName}`;
-  const storageRef = ref(storage, path);
-  onProgress(0);
-  await uploadStorageFile(storageRef, file, onProgress);
-  try {
-    return { url: await getDownloadURL(storageRef), path };
-  } catch (error) {
-    try { await deleteObject(storageRef); }
-    catch (cleanupError) { console.error("Could not clean up an upload without a download URL:", cleanupError); }
-    throw error;
-  }
+  return uploadCloudinaryAsset(file, { onProgress });
 }
 
-async function removeStoredAsset(path) {
-  if (!path) return;
-  await deleteObject(ref(storage, path));
-}
-
-async function uploadPrivateEventCover(file, onProgress = () => {}) {
+async function uploadMemberEventCover(file, onProgress = () => {}) {
   validateImage(file);
-  setUploadStatus("Checking Firebase Storage…");
-  await ensureStorageBucket();
-  const uploadName = `event-cover-${Date.now()}-${escapeFileName(file.name)}`;
-  const path = `submissions/${currentUser.uid}/${uploadName}`;
-  onProgress(0);
-  await uploadStorageFile(ref(storage, path), file, onProgress);
-  return { path };
+  return uploadAsset(file, onProgress);
 }
 
 function bindDashboardTabs(role) {
@@ -320,8 +238,8 @@ function bindMemberSubmissionForms() {
     try {
       const cover = data.get("cover");
       if (cover?.size) {
-        upload = await uploadPrivateEventCover(cover, (percent) => {
-          setUploadStatus(`Uploading private event cover… ${percent}%`);
+        upload = await uploadMemberEventCover(cover, (percent) => {
+          setUploadStatus(`Uploading member event cover… ${percent}%`);
         });
       }
       setUploadStatus("Sending event proposal to Firebase for review…");
@@ -333,19 +251,15 @@ function bindMemberSubmissionForms() {
         time: stringValue(data, "time"),
         description: stringValue(data, "description"),
         tags: tagsValue(stringValue(data, "tags")),
-        coverImageUrl: "",
-        coverStoragePath: upload?.path || ""
+        coverImageUrl: upload?.url || "",
+        coverImagePublicId: upload?.publicId || ""
       }));
       form.reset();
       clearFormPreview("member-event-form", "cover", "member-event-preview");
       setMessage("Event sent for approval. It will appear publicly after a reviewer approves it.");
     } catch (error) {
-      if (upload) {
-        try { await removeStoredAsset(upload.path); }
-        catch (cleanupError) { console.error("Could not remove an unsubmitted event cover:", cleanupError); }
-      }
       console.error("Could not submit the member event:", error);
-      setMessage(error.message || "The event could not be submitted.", true);
+      setMessage(`${error.message || "The event could not be submitted."}${cloudinaryCleanupHint([upload])}`, true);
     }
   });
 
@@ -364,8 +278,8 @@ function bindMemberSubmissionForms() {
         if (url.protocol !== "https:") throw new Error("Use HTTPS links for all article sources.");
         return url.href;
       });
-      upload = await uploadAsset(data.get("image"), "submissions", (percent) => {
-        setUploadStatus(`Uploading private Weekly cover… ${percent}%`);
+      upload = await uploadAsset(data.get("image"), (percent) => {
+        setUploadStatus(`Uploading member Weekly cover… ${percent}%`);
       });
       setUploadStatus("Sending Weekly post to Firebase for review…");
       await addDoc(collection(db, "contentSubmissions"), submissionRecord("weekly", {
@@ -377,18 +291,14 @@ function bindMemberSubmissionForms() {
         sources: sourceUrls,
         sourceUrl: sourceUrls[0],
         imageUrl: upload.url,
-        imageStoragePath: upload.path
+        imagePublicId: upload.publicId
       }));
       form.reset();
       clearFormPreview("member-weekly-form", "image", "member-weekly-preview");
       setMessage("Weekly post sent for approval.");
     } catch (error) {
-      if (upload) {
-        try { await removeStoredAsset(upload.path); }
-        catch (cleanupError) { console.error("Could not remove an unsubmitted Weekly cover:", cleanupError); }
-      }
       console.error("Could not submit the member Weekly post:", error);
-      setMessage(error.message || "The Weekly post could not be submitted.", true);
+      setMessage(`${error.message || "The Weekly post could not be submitted."}${cloudinaryCleanupHint([upload])}`, true);
     }
   });
 
@@ -405,7 +315,7 @@ function bindMemberSubmissionForms() {
       for (const [index, file] of files.entries()) {
         const label = fileType(file) === "video" ? "video" : "photo";
         const upload = await uploadAsset(file, "submissions", (percent) => {
-          setUploadStatus(`Uploading private ${label} ${index + 1} of ${files.length}… ${percent}%`);
+          setUploadStatus(`Uploading member ${label} ${index + 1} of ${files.length}… ${percent}%`);
         });
         uploads.push({ file, ...upload });
       }
@@ -416,8 +326,8 @@ function bindMemberSubmissionForms() {
           album: stringValue(data, "album"),
           caption: stringValue(data, "caption") || upload.file.name.replace(/\.[^.]+$/, ""),
           mediaUrl: upload.url,
+          mediaPublicId: upload.publicId,
           mediaType: fileType(upload.file),
-          storagePath: upload.path
         }));
       });
       await batch.commit();
@@ -425,12 +335,8 @@ function bindMemberSubmissionForms() {
       clearFormPreview("member-media-form", "media", "member-media-preview");
       setMessage(`${uploads.length} media item${uploads.length === 1 ? "" : "s"} sent for approval.`);
     } catch (error) {
-      for (const upload of uploads) {
-        try { await removeStoredAsset(upload.path); }
-        catch (cleanupError) { console.error("Could not remove unsubmitted member media:", cleanupError); }
-      }
       console.error("Could not submit member gallery media:", error);
-      setMessage(error.message || "The photos or videos could not be submitted.", true);
+      setMessage(`${error.message || "The photos or videos could not be submitted."}${cloudinaryCleanupHint(uploads)}`, true);
     }
   });
 
@@ -495,11 +401,6 @@ async function saveEvent(event) {
       eventData.updatedAt = serverTimestamp();
       await updateDoc(doc(db, "events", eventId), eventData);
       saved = true;
-      const previousPath = stringValue(data, "previousCoverPath");
-      if (uploaded && previousPath) {
-        try { await removeStoredAsset(previousPath); }
-        catch (error) { console.error("Could not remove the replaced event cover:", error); }
-      }
       setMessage("Event details updated.");
       setEventSaveStatus("Event updated.");
     } else {
@@ -522,7 +423,7 @@ async function saveEvent(event) {
     if (uploaded && !saved) console.error("The event cover uploaded to Cloudinary but the event was not saved; remove the unused asset if needed:", uploaded.publicId);
     console.error("Could not save the VCKTEC event:", error);
     const message = error.message || "The event could not be saved.";
-    const visibleMessage = uploaded && !saved ? `${message} The uploaded Cloudinary cover may need manual cleanup.` : message;
+    const visibleMessage = `${message}${cloudinaryCleanupHint(saved ? [] : [uploaded])}`;
     setMessage(visibleMessage, true);
     setEventSaveStatus(visibleMessage, true);
   }
@@ -569,11 +470,9 @@ function renderEventManagerItem(entry) {
     if (!window.confirm(`Delete “${data.title || "this event"}”?`)) return;
     try {
       await deleteDoc(doc(db, "events", id));
-      if (data.coverStoragePath) {
-        try { await removeStoredAsset(data.coverStoragePath); }
-        catch (error) { console.error("Could not remove the event cover:", error); }
-      }
-      setMessage("Event deleted.");
+      setMessage(data.coverImagePublicId
+        ? "Event deleted. Its Cloudinary cover remains in the media library."
+        : "Event deleted.");
       await loadEvents();
     } catch (error) {
       console.error("Could not delete the VCKTEC event:", error);
@@ -615,7 +514,7 @@ async function uploadGalleryFiles(form) {
   try {
     for (const [index, file] of files.entries()) {
       const label = fileType(file) === "video" ? "video" : "photo";
-      const asset = await uploadAsset(file, "gallery", (percent) => {
+      const asset = await uploadAsset(file, (percent) => {
         setUploadStatus(`Uploading gallery ${label} ${index + 1} of ${files.length}… ${percent}%`);
       });
       uploaded.push({ ...asset, file });
@@ -628,17 +527,16 @@ async function uploadGalleryFiles(form) {
         eventId,
         caption: caption || asset.file.name.replace(/\.[^.]+$/, ""),
         mediaUrl: asset.url,
+        mediaPublicId: asset.publicId,
         mediaType: fileType(asset.file),
-        storagePath: asset.path,
         createdBy: currentUser.uid,
         createdAt: serverTimestamp()
       });
     });
     await batch.commit();
   } catch (error) {
-    for (const asset of uploaded) {
-      try { await removeStoredAsset(asset.path); }
-      catch (cleanupError) { console.error("Could not clean up an unpublished gallery upload:", cleanupError); }
+    if (uploaded.length) {
+      error.message = `${error.message || "The gallery media could not be saved."}${cloudinaryCleanupHint(uploaded)}`;
     }
     throw error;
   }
@@ -685,11 +583,9 @@ function renderMediaManagerItem(entry) {
     if (!window.confirm(`Remove this ${data.mediaType === "video" ? "video" : "photo"} from “${data.album || "the album"}”?`)) return;
     try {
       await deleteDoc(doc(db, "gallery", id));
-      if (data.storagePath) {
-        try { await removeStoredAsset(data.storagePath); }
-        catch (error) { console.error("Could not remove the gallery file:", error); }
-      }
-      setMessage("Media removed from the gallery.");
+      setMessage(data.mediaPublicId
+        ? "Media removed from the gallery. Its Cloudinary asset remains in the media library."
+        : "Media removed from the gallery.");
       await loadGallery();
     } catch (error) {
       console.error("Could not delete the gallery media:", error);
@@ -740,7 +636,7 @@ async function saveWeeklyPost(event) {
     });
     if (imageFile?.size) {
       validateImage(imageFile);
-      uploaded = await uploadAsset(imageFile, "weekly", (percent) => {
+      uploaded = await uploadAsset(imageFile, (percent) => {
         setUploadStatus(`Uploading Weekly cover… ${percent}%`);
       });
     } else if (!postId) throw new Error("Choose a cover image for the new post.");
@@ -757,18 +653,14 @@ async function saveWeeklyPost(event) {
     setUploadStatus("Saving Weekly post to Firebase…");
     if (uploaded) {
       post.imageUrl = uploaded.url;
-      post.imageStoragePath = uploaded.path;
+      post.imagePublicId = uploaded.publicId;
+      post.imageStoragePath = "";
     }
     if (postId) {
       post.updatedAt = serverTimestamp();
       post.updatedByName = currentProfile.name || currentUser.displayName || currentUser.email || "VCKTEC member";
       await updateDoc(doc(db, "weeklyPosts", postId), post);
       saved = true;
-      const oldPath = stringValue(data, "previousImagePath");
-      if (uploaded && oldPath) {
-        try { await removeStoredAsset(oldPath); }
-        catch (error) { console.error("Could not remove the replaced Weekly cover:", error); }
-      }
     } else {
       post.authorName = currentProfile.name || currentUser.displayName || currentUser.email || "VCKTEC member";
       post.createdAt = serverTimestamp();
@@ -782,12 +674,8 @@ async function saveWeeklyPost(event) {
     await loadWeeklyPosts();
     setMessage(postId ? "Weekly post updated." : "Weekly post published.");
   } catch (error) {
-    if (uploaded && !saved) {
-      try { await removeStoredAsset(uploaded.path); }
-      catch (cleanupError) { console.error("Could not clean up an unpublished Weekly image:", cleanupError); }
-    }
     console.error("Could not save the Weekly post:", error);
-    setMessage(error.message || "The Weekly post could not be saved.", true);
+    setMessage(`${error.message || "The Weekly post could not be saved."}${cloudinaryCleanupHint(saved ? [] : [uploaded])}`, true);
   }
 }
 
@@ -841,11 +729,9 @@ async function loadWeeklyPosts() {
       if (!window.confirm(`Delete “${data.title || "this Weekly post"}”?`)) return;
       try {
         await deleteDoc(doc(db, "weeklyPosts", entry.id));
-        if (data.imageStoragePath) {
-          try { await removeStoredAsset(data.imageStoragePath); }
-          catch (error) { console.error("Could not remove the Weekly cover image:", error); }
-        }
-        setMessage("Weekly post deleted.");
+        setMessage(data.imagePublicId
+          ? "Weekly post deleted. Its Cloudinary cover remains in the media library."
+          : "Weekly post deleted.");
         await loadWeeklyPosts();
       } catch (error) {
         console.error("Could not delete the Weekly post:", error);
@@ -883,7 +769,7 @@ async function saveBoardProfile(event) {
     setUploadStatus("Preparing board profile…");
     if (imageFile?.size) {
       validateImage(imageFile);
-      uploaded = await uploadAsset(imageFile, "board", (percent) => {
+      uploaded = await uploadAsset(imageFile, (percent) => {
         setUploadStatus(`Uploading board portrait… ${percent}%`);
       });
     } else if (!memberId) throw new Error("Choose a portrait for the new board profile.");
@@ -897,17 +783,13 @@ async function saveBoardProfile(event) {
     setUploadStatus("Saving board profile to Firebase…");
     if (uploaded) {
       profile.imageUrl = uploaded.url;
-      profile.imageStoragePath = uploaded.path;
+      profile.imagePublicId = uploaded.publicId;
+      profile.imageStoragePath = "";
     }
     if (memberId) {
       profile.updatedAt = serverTimestamp();
       await updateDoc(doc(db, "boardMembers", memberId), profile);
       saved = true;
-      const previousPath = stringValue(data, "previousImagePath");
-      if (uploaded && previousPath) {
-        try { await removeStoredAsset(previousPath); }
-        catch (error) { console.error("Could not remove the replaced board portrait:", error); }
-      }
     } else {
       profile.createdAt = serverTimestamp();
       profile.createdBy = currentUser.uid;
@@ -919,12 +801,8 @@ async function saveBoardProfile(event) {
     await loadBoardProfiles();
     setMessage(memberId ? "Board profile updated." : "Board profile added.");
   } catch (error) {
-    if (uploaded && !saved) {
-      try { await removeStoredAsset(uploaded.path); }
-      catch (cleanupError) { console.error("Could not clean up an unpublished board portrait:", cleanupError); }
-    }
     console.error("Could not save the board profile:", error);
-    setMessage(error.message || "The board profile could not be saved.", true);
+    setMessage(`${error.message || "The board profile could not be saved."}${cloudinaryCleanupHint(saved ? [] : [uploaded])}`, true);
   }
 }
 
@@ -972,11 +850,9 @@ async function loadBoardProfiles() {
       if (!window.confirm(`Remove ${data.name || "this board profile"} from the public board?`)) return;
       try {
         await deleteDoc(doc(db, "boardMembers", entry.id));
-        if (data.imageStoragePath) {
-          try { await removeStoredAsset(data.imageStoragePath); }
-          catch (error) { console.error("Could not remove the board portrait:", error); }
-        }
-        setMessage("Board profile removed.");
+        setMessage(data.imagePublicId
+          ? "Board profile removed. Its Cloudinary portrait remains in the media library."
+          : "Board profile removed.");
         await loadBoardProfiles();
       } catch (error) {
         console.error("Could not delete the board profile:", error);
@@ -1090,7 +966,7 @@ async function reviewSuggestion(suggestion, suggestionId, type, approve) {
         imageUrl: suggestion.imageUrl,
         mediaUrl: suggestion.imageUrl,
         mediaType: "image",
-        storagePath: suggestion.storagePath,
+        mediaPublicId: suggestion.mediaPublicId || "",
         createdAt: serverTimestamp(),
         suggestedBy: suggestion.submittedBy
       });

@@ -1,5 +1,5 @@
 import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { db, isFirebaseConfigured } from "./firebase.js";
+import { db, isFirebaseConfigured } from "./firebase.js?v=20261028-cloudinary-media1";
 
 const form = document.querySelector("#anonymous-form");
 const message = document.querySelector("#community-message");

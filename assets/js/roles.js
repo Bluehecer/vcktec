@@ -1,6 +1,6 @@
 import { collection, doc, getDocs, updateDoc } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 import { subscribeToAccess } from "./auth.js";
-import { auth, db, isFirebaseConfigured } from "./firebase.js";
+import { auth, db, isFirebaseConfigured } from "./firebase.js?v=20261028-cloudinary-media1";
 import { signOut } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 
 const allowedRoles = ["member", "editor", "president"];
