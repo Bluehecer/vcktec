@@ -116,6 +116,7 @@ service cloud.firestore {
         && request.resource.data.time is string
         && request.resource.data.description is string
         && (!request.resource.data.keys().hasAny(['coverImageUrl']) || request.resource.data.coverImageUrl is string)
+        && (!request.resource.data.keys().hasAny(['coverImagePublicId']) || request.resource.data.coverImagePublicId is string)
         && (!request.resource.data.keys().hasAny(['topic']) || request.resource.data.topic is string)
         && (!request.resource.data.keys().hasAny(['venue']) || request.resource.data.venue is string)
         && (!request.resource.data.keys().hasAny(['tags']) || request.resource.data.tags is list);
@@ -125,6 +126,7 @@ service cloud.firestore {
         && request.resource.data.time is string
         && request.resource.data.description is string
         && (!request.resource.data.keys().hasAny(['coverImageUrl']) || request.resource.data.coverImageUrl is string)
+        && (!request.resource.data.keys().hasAny(['coverImagePublicId']) || request.resource.data.coverImagePublicId is string)
         && (!request.resource.data.keys().hasAny(['topic']) || request.resource.data.topic is string)
         && (!request.resource.data.keys().hasAny(['venue']) || request.resource.data.venue is string)
         && (!request.resource.data.keys().hasAny(['tags']) || request.resource.data.tags is list);

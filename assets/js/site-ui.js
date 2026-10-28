@@ -13,6 +13,7 @@ let roleReady = !isFirebaseConfigured;
 let canBypassMaintenance = false;
 let maintenanceEnabled = false;
 let loaderRemoved = false;
+let loaderExitTimer = null;
 
 function toast(message, type = "info") {
   if (!message) return;
@@ -115,13 +116,16 @@ function syncMaintenanceScreen() {
 
 function maybeHideLoader() {
   if (!loader || loaderRemoved || !windowLoaded || !pageReady || !settingsReady || !roleReady) return;
+  if (loaderExitTimer !== null) return;
   const remaining = Math.max(0, minimumLoaderTime - (performance.now() - startedAt));
-  window.setTimeout(() => {
-    if (loaderRemoved) return;
-    loaderRemoved = true;
-    loader.classList.add("loader-exit");
-    window.setTimeout(() => loader.remove(), 520);
-  }, remaining);
+  loaderExitTimer = window.setTimeout(hideLoader, remaining);
+}
+
+function hideLoader() {
+  if (!loader || loaderRemoved) return;
+  loaderRemoved = true;
+  loader.classList.add("loader-exit");
+  window.setTimeout(() => loader.remove(), 520);
 }
 
 window.addEventListener("load", () => {
@@ -144,7 +148,7 @@ window.setTimeout(() => {
   pageReady = true;
   settingsReady = true;
   roleReady = true;
-  maybeHideLoader();
+  hideLoader();
 }, maxStartupWait);
 
 if (windowLoaded) {

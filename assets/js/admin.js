@@ -15,6 +15,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 import { deleteObject, getDownloadURL, ref, uploadBytes } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
 import { subscribeToAccess } from "./auth.js";
+import { uploadEventCover } from "./cloudinary.js";
 import { db, isFirebaseConfigured, storage } from "./firebase.js";
 
 const gate = document.querySelector("#dashboard-gate");
@@ -132,6 +133,14 @@ async function removeStoredAsset(path) {
   await deleteObject(ref(storage, path));
 }
 
+async function uploadPrivateEventCover(file) {
+  validateImage(file);
+  const uploadName = `event-cover-${Date.now()}-${escapeFileName(file.name)}`;
+  const path = `submissions/${currentUser.uid}/${uploadName}`;
+  await uploadBytes(ref(storage, path), file, { contentType: file.type });
+  return { path };
+}
+
 function bindDashboardTabs(role) {
   const buttons = [...document.querySelectorAll(".dashboard-tab")];
   buttons.forEach((button) => {
@@ -235,8 +244,7 @@ function bindMemberSubmissionForms() {
     try {
       const cover = data.get("cover");
       if (cover?.size) {
-        validateImage(cover);
-        upload = await uploadAsset(cover, "submissions");
+        upload = await uploadPrivateEventCover(cover);
       }
       await addDoc(collection(db, "contentSubmissions"), submissionRecord("event", {
         title: stringValue(data, "title"),
@@ -246,7 +254,7 @@ function bindMemberSubmissionForms() {
         time: stringValue(data, "time"),
         description: stringValue(data, "description"),
         tags: tagsValue(stringValue(data, "tags")),
-        coverImageUrl: upload?.url || "",
+        coverImageUrl: "",
         coverStoragePath: upload?.path || ""
       }));
       form.reset();
@@ -381,12 +389,13 @@ async function saveEvent(event) {
     if (currentProfile.role === "editor" && !eventId) throw new Error("Editors can edit published events. New events must be submitted for approval.");
     if (cover?.size) {
       validateImage(cover);
-      uploaded = await uploadAsset(cover, "event-covers");
+      uploaded = await uploadEventCover(cover);
     } else if (!eventId) throw new Error("Choose a cover image for the new event.");
     const eventData = readEventForm(form);
     if (uploaded) {
       eventData.coverImageUrl = uploaded.url;
-      eventData.coverStoragePath = uploaded.path;
+      eventData.coverImagePublicId = uploaded.publicId;
+      eventData.coverStoragePath = "";
     }
     if (eventId) {
       eventData.updatedAt = serverTimestamp();
@@ -405,14 +414,16 @@ async function saveEvent(event) {
       setMessage("Event published.");
     }
     resetEventForm();
-    await loadEvents();
-  } catch (error) {
-    if (uploaded && !saved) {
-      try { await removeStoredAsset(uploaded.path); }
-      catch (cleanupError) { console.error("Could not clean up an unpublished event cover:", cleanupError); }
+    try { await loadEvents(); }
+    catch (error) {
+      console.error("The event was saved, but the event list could not be refreshed:", error);
+      setMessage("Event saved, but the event list could not be refreshed. Reload the dashboard to see it.", true);
     }
+  } catch (error) {
+    if (uploaded && !saved) console.error("The event cover uploaded to Cloudinary but the event was not saved; remove the unused asset if needed:", uploaded.publicId);
     console.error("Could not save the VCKTEC event:", error);
-    setMessage(error.message || "The event could not be saved.", true);
+    const message = error.message || "The event could not be saved.";
+    setMessage(uploaded && !saved ? `${message} The uploaded Cloudinary cover may need manual cleanup.` : message, true);
   }
 }
 
