@@ -3,7 +3,7 @@ const cloudinaryConfig = {
   unsignedUploadPreset: "sudheera"
 };
 
-export function uploadEventCover(file, onProgress = () => {}) {
+export function uploadCloudinaryImage(file, onProgress = () => {}) {
   if (!cloudinaryConfig.cloudName || !cloudinaryConfig.unsignedUploadPreset) {
     throw new Error("Cloudinary is not configured. Add the Cloud name and unsigned upload preset in assets/js/cloudinary.js.");
   }
@@ -35,11 +35,15 @@ export function uploadEventCover(file, onProgress = () => {}) {
       }
       if (!result || typeof result.secure_url !== "string" || !result.secure_url.startsWith("https://")
         || typeof result.public_id !== "string" || !result.public_id) {
-        reject(new Error("Cloudinary returned an invalid event cover."));
+        reject(new Error("Cloudinary returned an invalid image."));
         return;
       }
       resolve({ url: result.secure_url, publicId: result.public_id });
     });
     request.send(formData);
   });
+}
+
+export function uploadEventCover(file, onProgress = () => {}) {
+  return uploadCloudinaryImage(file, onProgress);
 }

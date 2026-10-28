@@ -32,7 +32,7 @@ assets/
   js/roles.js              Owner/president role assignments and account approvals
   js/announcements.js      Public one-time announcement pop-up display
   js/announcements-admin.js Announcement editor, destinations, and lifecycle
-  js/cloudinary.js         Public Cloudinary event-cover upload configuration
+  js/cloudinary.js         Public Cloudinary image-upload configuration
   js/firebase.js           Firebase web-app configuration
   js/site-ui.js            Branded startup loader, shared toasts, and live maintenance screen
 firestore.rules            Firestore access controls
@@ -72,7 +72,7 @@ Because the anonymous form must allow unauthenticated writes from a static site,
 
 Images uploaded through the site are limited to 8 MB. The society emblem and school crest supplied for this project are already in `assets/images/`.
 
-Event cover images for published events are stored in Cloudinary; event details and Cloudinary URLs remain in Firestore. The Cloudinary cloud name and unsigned upload preset are configured in `assets/js/cloudinary.js`; verify that the preset restricts uploads to JPG, PNG, WebP, or GIF images up to 8 MB and uses an event-cover folder. These values and the preset are public; never add a Cloudinary API secret to this static site. Member event covers stay in Firebase Storage while pending and are transferred to Cloudinary when approved, so unapproved covers are not publicly accessible. Cloudinary assets are not deleted automatically when an event is removed or its cover is replaced; use the stored `coverImagePublicId` to manage unused assets in Cloudinary.
+Published event covers and announcement images are stored in Cloudinary; their metadata and image URLs remain in Firestore. The Cloudinary cloud name and unsigned upload preset are configured in `assets/js/cloudinary.js`; verify that the preset restricts uploads to JPG, PNG, WebP, or GIF images up to 8 MB. These values and the preset are public; never add a Cloudinary API secret to this static site. Member event covers stay in Firebase Storage while pending and are transferred to Cloudinary when approved, so unapproved covers are not publicly accessible. Cloudinary assets are not deleted automatically when content is removed or its image is replaced; use the stored `coverImagePublicId` for events and the `cloudinary:`-prefixed `imageStoragePath` for announcements to manage unused assets in Cloudinary.
 
 ## Original ESP32 firmware
 
