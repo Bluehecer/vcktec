@@ -9,7 +9,7 @@ import {
   serverTimestamp,
   updateDoc
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { deleteObject, getDownloadURL, ref, uploadBytes } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
+import { deleteObject, getDownloadURL, ref, uploadBytesResumable } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { subscribeToAccess } from "./auth.js";
 import { auth, db, isFirebaseConfigured, storage } from "./firebase.js";
@@ -17,6 +17,7 @@ import { auth, db, isFirebaseConfigured, storage } from "./firebase.js";
 const managerRoles = ["owner", "president", "editor"];
 const form = document.querySelector("#announcement-form");
 const preview = document.querySelector("#announcement-image-preview");
+const saveStatus = document.querySelector("#announcement-save-status");
 const itemLabel = document.querySelector("#destination-item-label");
 const destinationSelect = form.elements.destinationId;
 const imageTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -29,6 +30,43 @@ function setMessage(text, isError = false) {
   target.textContent = text;
   target.classList.toggle("is-error", isError);
   if (text) window.vcktecToast?.(text, isError ? "error" : "success");
+}
+
+function setSaveStatus(text, isError = false) {
+  saveStatus.textContent = text;
+  saveStatus.classList.toggle("is-error", isError);
+  saveStatus.hidden = !text;
+}
+
+function uploadAnnouncementImage(imageRef, file, onProgress) {
+  const task = uploadBytesResumable(imageRef, file, { contentType: file.type });
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let unsubscribe = () => {};
+    const timeout = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      unsubscribe();
+      task.cancel();
+      reject(new Error("The image upload timed out after 90 seconds. Check your connection and try again."));
+    }, 90000);
+
+    unsubscribe = task.on("state_changed", (snapshot) => {
+      if (snapshot.totalBytes > 0) {
+        onProgress(Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100));
+      }
+    }, (error) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      reject(error);
+    }, () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      resolve(task.snapshot);
+    });
+  });
 }
 
 function showGate(title, copy, login = false) {
@@ -162,9 +200,11 @@ form.addEventListener("submit", async (event) => {
   }
   form.dataset.saving = "true";
   setBusy(true);
+  setSaveStatus("Preparing announcement…");
   let uploadedPath = "";
   let saved = false;
   let cleanupFailed = false;
+  let firestoreWaitTimer = null;
   try {
     const id = String(data.get("announcementId") || "");
     const oldImagePath = String(data.get("previousImagePath") || "");
@@ -172,8 +212,12 @@ form.addEventListener("submit", async (event) => {
     if (file) {
       const path = `public/${currentUser.uid}/announcement-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(-80)}`;
       const imageRef = ref(storage, path);
-      await uploadBytes(imageRef, file, { contentType: file.type });
       uploadedPath = path;
+      setSaveStatus("Uploading announcement image to Firebase Storage… 0%");
+      await uploadAnnouncementImage(imageRef, file, (percent) => {
+        setSaveStatus(`Uploading announcement image to Firebase Storage… ${percent}%`);
+      });
+      setSaveStatus("Getting the uploaded image URL…");
       imageUrl = await getDownloadURL(imageRef);
     }
     const destinationLabel = ["event", "album", "weeklyPost"].includes(type)
@@ -195,6 +239,10 @@ form.addEventListener("submit", async (event) => {
       updatedBy: currentUser.uid,
       updatedByName: String(currentProfile.name || currentUser.displayName || currentUser.email || "VCKTEC manager").slice(0, 100)
     };
+    setSaveStatus("Saving announcement details to Firebase…");
+    firestoreWaitTimer = window.setTimeout(() => {
+      setSaveStatus("Firebase is still processing the save. Keep this page open while it finishes.");
+    }, 12000);
     if (id) {
       await updateDoc(doc(db, "announcements", id), payload);
     } else {
@@ -202,6 +250,8 @@ form.addEventListener("submit", async (event) => {
       payload.createdBy = currentUser.uid;
       await addDoc(collection(db, "announcements"), payload);
     }
+    window.clearTimeout(firestoreWaitTimer);
+    firestoreWaitTimer = null;
     saved = true;
     if (uploadedPath && oldImagePath) {
       try { await deleteObject(ref(storage, oldImagePath)); }
@@ -213,17 +263,29 @@ form.addEventListener("submit", async (event) => {
     setMessage(cleanupFailed
       ? "Announcement saved, but the previous image could not be cleaned up. Ask an administrator to check Firebase Storage."
       : (id ? "Announcement updated." : "Announcement published."), cleanupFailed);
+    setSaveStatus(id ? "Announcement updated." : "Announcement published.");
     resetForm();
-    await loadAnnouncements();
+    setSaveStatus("Refreshing the announcement list…");
+    try {
+      await loadAnnouncements();
+      setSaveStatus(id ? "Done. Announcement updated." : "Done. Announcement published.");
+    } catch (error) {
+      console.error("Announcement saved, but its list could not be refreshed:", error);
+      setMessage("Announcement saved, but the list could not refresh. Reload this page to see it.", true);
+      setSaveStatus("Saved successfully, but the list could not refresh. Reload this page.", true);
+    }
   } catch (error) {
+    window.clearTimeout(firestoreWaitTimer);
     if (uploadedPath && !saved) {
       try { await deleteObject(ref(storage, uploadedPath)); }
       catch (cleanupError) { console.error("Could not clean up the uncommitted announcement image:", cleanupError); }
     }
     console.error("Could not save the VCKTEC announcement:", error);
-    setMessage(saved
+    const message = saved
       ? `Announcement saved, but the page could not refresh: ${error.message || "refresh failed"}. Reload the page.`
-      : (error.message || "The announcement could not be saved."), true);
+      : (error.message || "The announcement could not be saved.");
+    setMessage(message, true);
+    setSaveStatus(message, true);
   } finally {
     form.dataset.saving = "false";
     setBusy(false);

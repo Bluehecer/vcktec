@@ -36,6 +36,7 @@
             <div class="form-row"><label>Start showing (optional)<input name="startsAt" type="datetime-local"><span class="field-hint">Leave blank to show immediately.</span></label><label>Stop showing (optional)<input name="expiresAt" type="datetime-local"><span class="field-hint">Leave blank for no end date.</span></label></div>
             <label class="checkbox-label"><input name="active" type="checkbox" checked> Publish this announcement now</label>
             <div class="form-row"><button class="button button-primary" type="submit">Publish announcement</button><button class="button button-outline" id="cancel-announcement-edit" type="button" hidden>Cancel edit</button></div>
+            <p class="form-message" id="announcement-save-status" role="status" aria-live="polite" hidden></p>
           </form>
           <p class="form-message" id="announcement-message" role="status" aria-live="polite"></p>
         </section>
