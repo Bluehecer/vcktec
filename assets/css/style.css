@@ -329,7 +329,7 @@ h1, h2, h3, p { margin-top: 0; }
 .page-hero > p:last-child { max-width: 610px; color: #a6b3c6; font-size: 15px; line-height: 1.8; }
 .event-list-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .event-card-link { color: inherit; }
-.event-card-cover { width: calc(100% + 46px); height: 190px; margin: -23px -23px 20px; object-fit: cover; }
+.event-card-cover { display: block; flex: 0 0 auto; align-self: stretch; width: calc(100% + 46px); max-width: none; height: 190px; margin: -23px -23px 20px; object-fit: cover; }
 .event-card-content { flex: 1; display: flex; flex-direction: column; align-items: stretch; }
 .event-meta-line { display: flex; flex-wrap: wrap; gap: 12px; margin-top: auto; color: #a9bad0; font-size: 11px; }
 .event-detail { margin-top: 23px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
