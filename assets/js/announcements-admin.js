@@ -9,10 +9,11 @@ import {
   serverTimestamp,
   updateDoc
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { deleteObject, getDownloadURL, ref, uploadBytesResumable } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
+import { deleteObject, ref } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { subscribeToAccess } from "./auth.js";
 import { auth, db, isFirebaseConfigured, storage } from "./firebase.js";
+import { uploadCloudinaryImage } from "./cloudinary.js";
 
 const managerRoles = ["owner", "president", "editor"];
 const form = document.querySelector("#announcement-form");
@@ -36,37 +37,6 @@ function setSaveStatus(text, isError = false) {
   saveStatus.textContent = text;
   saveStatus.classList.toggle("is-error", isError);
   saveStatus.hidden = !text;
-}
-
-function uploadAnnouncementImage(imageRef, file, onProgress) {
-  const task = uploadBytesResumable(imageRef, file, { contentType: file.type });
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    let unsubscribe = () => {};
-    const timeout = window.setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      unsubscribe();
-      task.cancel();
-      reject(new Error("The image upload timed out after 90 seconds. Check your connection and try again."));
-    }, 90000);
-
-    unsubscribe = task.on("state_changed", (snapshot) => {
-      if (snapshot.totalBytes > 0) {
-        onProgress(Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100));
-      }
-    }, (error) => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timeout);
-      reject(error);
-    }, () => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timeout);
-      resolve(task.snapshot);
-    });
-  });
 }
 
 function showGate(title, copy, login = false) {
@@ -201,24 +171,25 @@ form.addEventListener("submit", async (event) => {
   form.dataset.saving = "true";
   setBusy(true);
   setSaveStatus("Preparing announcement…");
-  let uploadedPath = "";
+  let uploadedPublicId = "";
   let saved = false;
   let cleanupFailed = false;
   let firestoreWaitTimer = null;
   try {
     const id = String(data.get("announcementId") || "");
-    const oldImagePath = String(data.get("previousImagePath") || "");
+    const oldImageStoragePath = String(data.get("previousImagePath") || "");
+    const oldImagePublicId = oldImageStoragePath.startsWith("cloudinary:")
+      ? oldImageStoragePath.slice("cloudinary:".length)
+      : "";
+    const oldImagePath = oldImagePublicId ? "" : oldImageStoragePath;
     let imageUrl = String(form.dataset.currentImageUrl || "");
     if (file) {
-      const path = `public/${currentUser.uid}/announcement-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(-80)}`;
-      const imageRef = ref(storage, path);
-      uploadedPath = path;
-      setSaveStatus("Uploading announcement image to Firebase Storage… 0%");
-      await uploadAnnouncementImage(imageRef, file, (percent) => {
-        setSaveStatus(`Uploading announcement image to Firebase Storage… ${percent}%`);
+      setSaveStatus("Uploading announcement image to Cloudinary… 0%");
+      const upload = await uploadCloudinaryImage(file, (percent) => {
+        setSaveStatus(`Uploading announcement image to Cloudinary… ${percent}%`);
       });
-      setSaveStatus("Getting the uploaded image URL…");
-      imageUrl = await getDownloadURL(imageRef);
+      imageUrl = upload.url;
+      uploadedPublicId = upload.publicId;
     }
     const destinationLabel = ["event", "album", "weeklyPost"].includes(type)
       ? selectedOption?.textContent || ""
@@ -227,7 +198,9 @@ form.addEventListener("submit", async (event) => {
       title: String(data.get("title") || "").trim(),
       message: String(data.get("message") || "").trim(),
       imageUrl,
-      imageStoragePath: uploadedPath || oldImagePath,
+      imageStoragePath: file
+        ? (uploadedPublicId ? `cloudinary:${uploadedPublicId}` : "")
+        : oldImageStoragePath,
       destinationType: type,
       destinationId: ["event", "album", "weeklyPost"].includes(type) ? destinationId : "",
       destinationLabel,
@@ -253,16 +226,19 @@ form.addEventListener("submit", async (event) => {
     window.clearTimeout(firestoreWaitTimer);
     firestoreWaitTimer = null;
     saved = true;
-    if (uploadedPath && oldImagePath) {
+    if (file && oldImagePath) {
       try { await deleteObject(ref(storage, oldImagePath)); }
       catch (error) {
         cleanupFailed = true;
         console.error("Announcement saved, but the replaced image could not be removed:", error);
       }
     }
+    const successMessage = id ? "Announcement updated." : "Announcement published.";
     setMessage(cleanupFailed
       ? "Announcement saved, but the previous image could not be cleaned up. Ask an administrator to check Firebase Storage."
-      : (id ? "Announcement updated." : "Announcement published."), cleanupFailed);
+      : (uploadedPublicId && oldImagePublicId
+        ? `${successMessage} The previous Cloudinary image remains in the media library.`
+        : successMessage), cleanupFailed);
     setSaveStatus(id ? "Announcement updated." : "Announcement published.");
     resetForm();
     setSaveStatus("Refreshing the announcement list…");
@@ -276,14 +252,12 @@ form.addEventListener("submit", async (event) => {
     }
   } catch (error) {
     window.clearTimeout(firestoreWaitTimer);
-    if (uploadedPath && !saved) {
-      try { await deleteObject(ref(storage, uploadedPath)); }
-      catch (cleanupError) { console.error("Could not clean up the uncommitted announcement image:", cleanupError); }
-    }
     console.error("Could not save the VCKTEC announcement:", error);
     const message = saved
       ? `Announcement saved, but the page could not refresh: ${error.message || "refresh failed"}. Reload the page.`
-      : (error.message || "The announcement could not be saved.");
+      : (uploadedPublicId
+        ? `Image uploaded, but the announcement could not be saved. Cloudinary asset ${uploadedPublicId} may need manual cleanup. ${error.message || ""}`.trim()
+        : (error.message || "The announcement could not be saved."));
     setMessage(message, true);
     setSaveStatus(message, true);
   } finally {
@@ -389,7 +363,9 @@ function makeAnnouncementItem(id, data) {
       await deleteDoc(doc(db, "announcements", id));
       deleted = true;
       let cleanupFailed = false;
-      if (data.imageStoragePath) {
+      const cloudinaryImage = typeof data.imageStoragePath === "string"
+        && data.imageStoragePath.startsWith("cloudinary:");
+      if (data.imageStoragePath && !cloudinaryImage) {
         try { await deleteObject(ref(storage, data.imageStoragePath)); }
         catch (error) {
           cleanupFailed = true;
@@ -398,7 +374,9 @@ function makeAnnouncementItem(id, data) {
       }
       setMessage(cleanupFailed
         ? "Announcement deleted, but its image could not be cleaned up. Ask an administrator to check Firebase Storage."
-        : "Announcement deleted.", cleanupFailed);
+        : (cloudinaryImage
+          ? "Announcement deleted. Its Cloudinary image remains in the media library."
+          : "Announcement deleted."), cleanupFailed);
       await loadAnnouncements();
     } catch (error) {
       console.error("Could not delete the VCKTEC announcement:", error);
