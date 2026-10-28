@@ -1,19 +1,19 @@
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
-import { doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { auth, db, isFirebaseConfigured } from "./firebase.js";
-
 const loader = document.querySelector("#global-loader");
 const startedAt = performance.now();
 const minimumLoaderTime = 650;
 const maxStartupWait = 3600;
 let windowLoaded = document.readyState === "complete";
 let pageReady = false;
-let settingsReady = !isFirebaseConfigured;
-let roleReady = !isFirebaseConfigured;
+let settingsReady = false;
+let roleReady = false;
 let canBypassMaintenance = false;
 let maintenanceEnabled = false;
 let loaderRemoved = false;
 let loaderExitTimer = null;
+
+loader?.querySelector(".loader-logo")?.addEventListener("error", (event) => {
+  event.currentTarget.hidden = true;
+});
 
 function toast(message, type = "info") {
   if (!message) return;
@@ -163,7 +163,19 @@ window.addEventListener("vcktec:page-ready", () => {
   maybeHideLoader();
 });
 
-if (isFirebaseConfigured && auth && db) {
+async function initializeFirebaseUi() {
+  const [{ auth, db, isFirebaseConfigured }, { onAuthStateChanged }, { doc, getDoc, onSnapshot }] = await Promise.all([
+    import("./firebase.js"),
+    import("https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js"),
+    import("https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js")
+  ]);
+  if (!isFirebaseConfigured || !auth || !db) {
+    settingsReady = true;
+    roleReady = true;
+    maybeHideLoader();
+    return;
+  }
+
   const accessPromise = new Promise((resolve) => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       unsubscribe();
@@ -227,3 +239,10 @@ if (isFirebaseConfigured && auth && db) {
     maybeHideLoader();
   });
 }
+
+initializeFirebaseUi().catch((error) => {
+  console.error("Could not initialize Firebase site services:", error);
+  settingsReady = true;
+  roleReady = true;
+  maybeHideLoader();
+});
