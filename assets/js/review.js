@@ -12,7 +12,7 @@ import {
 import { deleteObject, getBlob, ref } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { subscribeToAccess } from "./auth.js";
-import { uploadEventCover } from "./cloudinary.js";
+import { uploadEventCover } from "./cloudinary.js?v=20261028-publish2";
 import { auth, db, isFirebaseConfigured, storage } from "./firebase.js";
 
 let reviewer = null;
