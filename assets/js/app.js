@@ -134,7 +134,6 @@ function renderHomepageMedia() {
   const card = element("article", "home-feature-card");
   const url = safeUrl(homepageSettings.mediaUrl);
   let media = null;
-  let playbackToggle = null;
   if (url && homepageSettings.mediaType === "video") {
     media = element("video", "home-feature-asset");
     media.src = url;
@@ -145,21 +144,6 @@ function renderHomepageMedia() {
     media.playsInline = true;
     media.preload = "metadata";
     media.setAttribute("aria-label", "Featured VCKTEC video");
-    playbackToggle = element("button", "button button-outline home-feature-toggle", "Ⅱ Pause preview");
-    playbackToggle.type = "button";
-    playbackToggle.setAttribute("aria-label", "Pause featured video");
-    const updatePlaybackToggle = () => {
-      playbackToggle.textContent = media.paused ? "▶ Play preview" : "Ⅱ Pause preview";
-      playbackToggle.setAttribute("aria-label", media.paused ? "Play featured video" : "Pause featured video");
-    };
-    playbackToggle.addEventListener("click", () => {
-      if (media.paused) {
-        media.play().catch(() => window.vcktecToast?.("Featured video could not be played.", "error"));
-      } else media.pause();
-    });
-    media.addEventListener("play", updatePlaybackToggle);
-    media.addEventListener("pause", updatePlaybackToggle);
-    updatePlaybackToggle();
   } else if (url && homepageSettings.mediaType === "image") {
     media = element("img", "home-feature-asset");
     media.src = url;
@@ -169,7 +153,6 @@ function renderHomepageMedia() {
   if (media) {
     media.addEventListener("error", () => {
       media.replaceWith(element("div", "home-feature-placeholder", "Featured media is temporarily unavailable."));
-      if (playbackToggle) playbackToggle.hidden = true;
     }, { once: true });
     card.append(media);
   } else {
@@ -177,7 +160,6 @@ function renderHomepageMedia() {
   }
   const copy = element("div", "home-feature-copy");
   copy.append(element("p", "", homepageSettings.description || "A glimpse of the ideas, projects, and people bringing VCKTEC to life."));
-  if (playbackToggle) copy.append(playbackToggle);
   card.append(copy);
   container.replaceChildren(card);
 }
