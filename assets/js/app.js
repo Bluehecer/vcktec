@@ -8,7 +8,7 @@ import {
   where
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 import { db, isFirebaseConfigured } from "./firebase.js?v=20261028-cloudinary-media1";
-import "./announcements.js";
+import "./announcements.js?v=20261030-session-announcements1";
 
 const today = () => {
   const date = new Date();

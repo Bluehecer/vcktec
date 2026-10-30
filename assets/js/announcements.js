@@ -31,7 +31,7 @@ function millis(value) {
 
 function seenIds() {
   try {
-    const values = JSON.parse(localStorage.getItem(seenKey) || "[]");
+    const values = JSON.parse(sessionStorage.getItem(seenKey) || "[]");
     return new Set(Array.isArray(values) ? values.filter((value) => typeof value === "string") : []);
   } catch (error) {
     console.error("Could not read announcement display history:", error);
@@ -43,7 +43,7 @@ function markSeen(id) {
   const seen = seenIds();
   seen.add(id);
   try {
-    localStorage.setItem(seenKey, JSON.stringify([...seen].slice(-100)));
+    sessionStorage.setItem(seenKey, JSON.stringify([...seen].slice(-100)));
   } catch (error) {
     console.error("Could not save announcement display history:", error);
   }
