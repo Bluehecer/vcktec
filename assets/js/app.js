@@ -351,15 +351,18 @@ function renderHomeGallerySlideshow(container, slides) {
 
   const slideshow = element("div", "home-gallery-slideshow");
   const image = element("img", "home-gallery-image");
+  const albumName = element("p", "home-gallery-album");
   image.loading = "eager";
   image.decoding = "async";
   image.alt = `Photo from ${slides[0].album}`;
+  albumName.textContent = slides[0].album;
   let activeIndex = 0;
 
   function showSlide() {
     const slide = slides[activeIndex];
     image.src = slide.url;
     image.alt = `Photo from ${slide.album}`;
+    albumName.textContent = slide.album;
   }
 
   image.addEventListener("error", () => {
@@ -385,7 +388,7 @@ function renderHomeGallerySlideshow(container, slides) {
     showSlide();
   }
 
-  slideshow.append(image);
+  slideshow.append(image, albumName);
   container.append(slideshow);
   showSlide();
   if (slides.length > 1) homeGalleryTimer = window.setInterval(showNextSlide, 4500);
