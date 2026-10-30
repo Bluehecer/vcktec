@@ -70,8 +70,8 @@ h1, h2, h3, p { margin-top: 0; }
 @keyframes orbit { to { transform: rotate(360deg); } }
 .crest-card { position: absolute; z-index: 1; display: grid; place-items: center; border: 1px solid rgba(198, 216, 240, .2); border-radius: 18px; background: rgba(248, 250, 252, .97); box-shadow: 0 20px 65px rgba(0, 0, 0, .45); overflow: hidden; }
 .crest-card img { width: 100%; height: 100%; object-fit: contain; }
-.school-crest { z-index: 1; width: 190px; height: 238px; padding: 10px; transform: translate(-52px, -8px) rotate(-6deg); }
-.society-crest { z-index: 2; width: 132px; height: 132px; padding: 8px; transform: translate(76px, 57px) rotate(7deg); }
+.school-crest { z-index: 2; width: 132px; height: 132px; padding: 8px; transform: translate(76px, 57px) rotate(7deg); }
+.society-crest { z-index: 1; width: 190px; height: 238px; padding: 10px; transform: translate(-52px, -8px) rotate(-6deg); }
 .orbit-label { position: absolute; color: #7e90a8; font: 600 8px var(--font-display); letter-spacing: .19em; }
 .label-top { top: 50px; right: 31px; }
 .label-bottom { left: 9px; bottom: 45px; }
@@ -110,16 +110,8 @@ video.home-feature-asset { position: relative; z-index: 1; color-scheme: dark; }
 .home-feature-copy { align-self: center; padding: clamp(22px, 4vw, 42px); }
 .home-feature-copy p { margin: 0; color: #a9b6c7; font-size: 14px; line-height: 1.85; white-space: pre-line; }
 .home-feature-toggle { margin-top: 20px; }
-.home-gallery-slideshow { grid-column: 1 / -1; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: linear-gradient(145deg, rgba(20, 31, 48, .95), rgba(12, 19, 31, .95)); }
-.home-gallery-figure { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(230px, .65fr); align-items: stretch; margin: 0; }
-.home-gallery-image { display: block; width: 100%; min-height: 340px; aspect-ratio: 16 / 9; background: #101a2a; object-fit: cover; }
-.home-gallery-caption { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding: clamp(22px, 4vw, 42px); }
-.home-gallery-caption .section-kicker { margin-bottom: 12px; }
-.home-gallery-photo-caption { margin: 0 0 20px; color: #a9b6c7; font-size: 14px; line-height: 1.75; }
-.home-gallery-photo-caption[hidden] { display: none; }
-.home-gallery-controls { display: flex; align-items: center; gap: 9px; padding: 13px 18px; border-top: 1px solid rgba(163, 186, 217, .1); }
-.home-gallery-status { margin-right: auto; color: #a9b6c7; font-size: 12px; font-variant-numeric: tabular-nums; }
-.home-gallery-control { min-height: 37px; padding: 0 13px; font-size: 11px; }
+.home-gallery-slideshow { grid-column: 1 / -1; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #101a2a; }
+.home-gallery-image { display: block; width: 100%; aspect-ratio: 16 / 9; background: #101a2a; object-fit: cover; }
 .gallery-card { aspect-ratio: 1 / 1; position: relative; border: 1px solid var(--line); border-radius: 10px; background: #131e2d; overflow: hidden; transition: border-color .2s, transform .2s; }
 .gallery-card img { width: 100%; height: 100%; object-fit: cover; transition: transform .4s ease; }
 .gallery-card:hover img { transform: scale(1.06); }
@@ -269,8 +261,8 @@ video.home-feature-asset { position: relative; z-index: 1; color-scheme: dark; }
   .hero { min-height: 550px; grid-template-columns: 1.05fr .95fr; }
   .orbit { width: 320px; height: 320px; }
   .orbit-two { width: 250px; height: 250px; }
-  .school-crest { width: 158px; height: 205px; }
-  .society-crest { width: 116px; height: 116px; }
+  .school-crest { width: 116px; height: 116px; }
+  .society-crest { width: 158px; height: 205px; }
   .gallery-grid { grid-template-columns: repeat(2, 1fr); }
   .portal-page { gap: 40px; }
   .signal-inner { font-size: 8px; letter-spacing: .1em; }
@@ -297,8 +289,8 @@ video.home-feature-asset { position: relative; z-index: 1; color-scheme: dark; }
   .hero-art { min-height: 340px; margin-top: 6px; }
   .orbit { width: 300px; height: 300px; }
   .orbit-two { width: 236px; height: 236px; }
-  .school-crest { width: 152px; height: 198px; transform: translate(-45px, -4px) rotate(-6deg); }
-  .society-crest { width: 112px; height: 112px; transform: translate(63px, 47px) rotate(7deg); }
+  .school-crest { width: 112px; height: 112px; transform: translate(63px, 47px) rotate(7deg); }
+  .society-crest { width: 152px; height: 198px; transform: translate(-45px, -4px) rotate(-6deg); }
   .label-top { top: 22px; right: 0; }
   .label-bottom { left: 0; bottom: 20px; }
   .scroll-cue { bottom: 24px; }
@@ -311,11 +303,7 @@ video.home-feature-asset { position: relative; z-index: 1; color-scheme: dark; }
   .event-card { min-height: 205px; }
   .home-feature-card { grid-template-columns: 1fr; }
   .home-feature-copy { padding: 22px; }
-  .home-gallery-figure { grid-template-columns: 1fr; }
-  .home-gallery-image { min-height: 0; aspect-ratio: 4 / 3; }
-  .home-gallery-caption { padding: 22px; }
-  .home-gallery-controls { gap: 6px; padding: 11px; }
-  .home-gallery-control { min-height: 36px; padding: 0 10px; }
+  .home-gallery-image { aspect-ratio: 4 / 3; }
   .gallery-grid { gap: 9px; }
   .gallery-card { aspect-ratio: 1 / 1.12; }
   .gallery-overlay { padding: 10px; }
@@ -487,14 +475,10 @@ video.home-feature-asset { position: relative; z-index: 1; color-scheme: dark; }
 .global-loader::before, .global-loader::after { content: ""; position: absolute; width: min(75vw, 660px); aspect-ratio: 1; border: 1px solid rgba(91, 206, 221, .08); border-radius: 50%; animation: loader-ring 18s linear infinite; }
 .global-loader::after { width: min(54vw, 470px); border-style: dashed; border-color: rgba(99, 163, 255, .12); animation-direction: reverse; animation-duration: 25s; }
 .global-loader.loader-exit { opacity: 0; visibility: hidden; pointer-events: none; }
-.loader-core { width: 190px; height: 140px; position: relative; display: grid; place-items: center; margin-bottom: 22px; }
-.loader-emblem-stack { position: absolute; inset: 0; z-index: 2; }
-.loader-emblem { position: absolute; display: grid; place-items: center; overflow: hidden; border: 1px solid rgba(198, 216, 240, .28); border-radius: 12px; background: #fff; box-shadow: 0 12px 36px rgba(0, 0, 0, .4); }
-.loader-emblem img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.loader-school { z-index: 1; top: 4px; left: 4px; width: 103px; height: 130px; padding: 5px; transform: rotate(-6deg); }
-.loader-society { z-index: 2; right: 4px; bottom: 3px; width: 83px; height: 83px; padding: 5px; transform: rotate(7deg); }
-.loader-orbit { position: absolute; z-index: 0; top: 2px; left: 27px; width: 136px; height: 136px; border: 1px solid transparent; border-top-color: #67ecdc; border-right-color: rgba(96, 172, 255, .6); border-radius: 50%; animation: loader-spin 1.35s linear infinite; }
-.loader-pulse { position: absolute; z-index: 0; top: -4px; left: 21px; width: 148px; height: 148px; border: 1px solid rgba(88, 223, 215, .21); border-radius: 50%; animation: loader-pulse 1.9s ease-out infinite; }
+.loader-core { width: 124px; height: 124px; position: relative; display: grid; place-items: center; margin-bottom: 22px; }
+.loader-logo { z-index: 1; width: 74px; height: 74px; border: 3px solid rgba(239, 248, 255, .88); border-radius: 50%; object-fit: contain; background: white; box-shadow: 0 0 24px rgba(76, 209, 218, .32); }
+.loader-orbit { position: absolute; inset: 2px; border: 1px solid transparent; border-top-color: #67ecdc; border-right-color: rgba(96, 172, 255, .6); border-radius: 50%; animation: loader-spin 1.35s linear infinite; }
+.loader-pulse { position: absolute; inset: 12px; border: 1px solid rgba(88, 223, 215, .21); border-radius: 50%; animation: loader-pulse 1.9s ease-out infinite; }
 .loader-wordmark { z-index: 1; margin: 0; color: #f4fbff; font: 700 22px var(--font-display); letter-spacing: .2em; text-shadow: 0 0 18px rgba(84, 227, 216, .34); animation: loading-word 1s ease both; }
 .loader-wordmark span { color: #62e2d3; }
 .loader-caption { z-index: 1; margin: 10px 0 21px; color: #91a9be; font: 600 9px var(--font-display); letter-spacing: .22em; animation: loading-word 1s .1s ease both; }

@@ -11,10 +11,8 @@ let maintenanceEnabled = false;
 let loaderRemoved = false;
 let loaderExitTimer = null;
 
-loader?.querySelectorAll(".loader-logo").forEach((logo) => {
-  logo.addEventListener("error", () => {
-    logo.hidden = true;
-  });
+loader?.querySelector(".loader-logo")?.addEventListener("error", (event) => {
+  event.currentTarget.hidden = true;
 });
 
 function toast(message, type = "info") {
