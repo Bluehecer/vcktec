@@ -89,6 +89,22 @@ service cloud.firestore {
             && data.destinationLabel == ''));
     }
 
+    function validHomepageContent(data) {
+      return data.homeMediaUrl is string
+        && (data.homeMediaUrl == '' || data.homeMediaUrl.matches('https://.*'))
+        && data.homeMediaType in ['', 'image', 'video']
+        && ((data.homeMediaUrl == '' && data.homeMediaType == '')
+          || (data.homeMediaUrl.matches('https://.*') && data.homeMediaType in ['image', 'video']))
+        && data.homeMediaDescription is string
+        && data.homeMediaDescription.size() <= 600
+        && data.homeMediaPublicId is string
+        && data.homeMediaPublicId.size() <= 255
+        && data.homeFeaturedAlbums is list
+        && data.homeFeaturedAlbums.size() <= 4
+        && data.updatedAt is timestamp
+        && data.updatedBy == request.auth.uid;
+    }
+
     match /users/{userId} {
       allow create: if signedIn()
         && request.auth.uid == userId
@@ -204,9 +220,22 @@ service cloud.firestore {
 
     match /settings/{settingId} {
       allow read: if settingId == 'site_config';
-      allow create, update: if isOwner()
-        && settingId == 'site_config'
-        && request.resource.data.maintenanceMode is bool;
+      allow create: if settingId == 'site_config'
+        && ((isOwner() && request.resource.data.maintenanceMode is bool)
+          || (isContentApprover()
+            && request.resource.data.keys().hasOnly([
+              'homeMediaUrl', 'homeMediaType', 'homeMediaDescription', 'homeMediaPublicId',
+              'homeFeaturedAlbums', 'updatedAt', 'updatedBy'
+            ])
+            && validHomepageContent(request.resource.data)));
+      allow update: if settingId == 'site_config'
+        && ((isOwner() && request.resource.data.maintenanceMode is bool)
+          || (isContentApprover()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'homeMediaUrl', 'homeMediaType', 'homeMediaDescription', 'homeMediaPublicId',
+              'homeFeaturedAlbums', 'updatedAt', 'updatedBy'
+            ])
+            && validHomepageContent(request.resource.data)));
       allow delete: if false;
     }
 

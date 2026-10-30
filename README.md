@@ -5,7 +5,7 @@ This repository contains the responsive public website for Vidyartha College Kan
 ## Website structure
 
 ```text
-index.html                 Home and previews of events, albums, and VCKTEC Weekly
+index.html                 Home and previews of events, featured media, albums, and VCKTEC Weekly
 events.html                Upcoming and past event listings
 event.html                 Full event details and its archive link
 gallery.html               Public event and society albums
@@ -41,7 +41,7 @@ storage.rules              Legacy Firebase Storage rules (not used by the websit
 
 Members can submit event proposals, complete VCKTEC Weekly stories, and batches of up to 20 gallery photos/videos. Submission records are held in Firestore's review queue until an owner, president, or editor approves them on `review.html`. Media is uploaded directly to Cloudinary and is publicly reachable by its URL even while a submission is pending. Editors can review submissions and edit/delete published events, posts, and gallery items; owners and presidents can also create and manage content. Only owners can manage board profiles. Owners and presidents manage account roles on `roles.html`; available roles are member, editor, and president (the owner role remains a one-time Firebase-console assignment). Email registration requires the member's name, and first-time Google profiles use the name returned by Google. Weekly posts show the contributor's name and publication date. Images are limited to 8 MB each and videos to 50 MB each in the website.
 
-The owner can switch site-wide maintenance mode in the dashboard's **Reviews & members** tab. The live setting is stored at `settings/site_config` as a boolean `maintenanceMode`; visitors see an animated maintenance screen while approved owners, presidents, and editors can continue browsing. The first settings document is created when the owner changes the switch.
+Approved owners, presidents, and editors can configure the homepage spotlight and choose up to four featured photo albums in the dashboard's **Homepage** tab. Featured media and its description, plus the selected album names, are stored in `settings/site_config`; videos are muted, inline, and looped for browser-safe autoplay, with controls available. The owner can switch site-wide maintenance mode in the dashboard's **Reviews & members** tab. The live setting is stored at `settings/site_config` as a boolean `maintenanceMode`; visitors see an animated maintenance screen while approved owners, presidents, and editors can continue browsing. The first settings document is created when the owner changes the switch.
 
 The shared cyber-tech loading intro and toast notifications are enabled on every site page. Managers see disabled, spinner-equipped submit buttons while content is being saved or uploaded.
 

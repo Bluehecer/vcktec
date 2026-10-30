@@ -28,6 +28,10 @@ const videoTypes = ["video/mp4", "video/webm", "video/quicktime"];
 let currentUser = null;
 let currentProfile = null;
 const previewUrls = new WeakMap();
+let homepageSettings = { mediaUrl: "", mediaType: "", mediaPublicId: "", description: "", featuredAlbums: [] };
+let publishedAlbumNames = [];
+let homepageSettingsLoaded = false;
+let publishedAlbumsLoaded = false;
 
 function setMessage(message, isError = false) {
   dashboardMessage.textContent = message;
@@ -501,6 +505,170 @@ function mediaSrc(data) {
   return data.mediaUrl || data.imageUrl || data.videoUrl || "";
 }
 
+function selectedHomepageAlbums() {
+  return [...document.querySelectorAll('#home-featured-albums input[name="featuredAlbum"]:checked')]
+    .map((input) => input.value)
+    .slice(0, 4);
+}
+
+function renderHomepageAlbumOptions() {
+  const container = document.querySelector("#home-featured-albums");
+  if (!container) return;
+  container.replaceChildren();
+  if (!publishedAlbumNames.length) {
+    container.append(makeEmptyNote("Publish gallery media to create albums you can feature."));
+    return;
+  }
+  publishedAlbumNames.forEach((album) => {
+    const label = document.createElement("label");
+    label.className = "home-album-choice";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.name = "featuredAlbum";
+    checkbox.value = album;
+    checkbox.checked = homepageSettings.featuredAlbums.includes(album);
+    checkbox.addEventListener("change", () => {
+      if (selectedHomepageAlbums().length > 4) {
+        checkbox.checked = false;
+        window.vcktecToast?.("Choose up to four homepage albums.", "error");
+      }
+    });
+    const name = document.createElement("span");
+    name.textContent = album;
+    label.append(checkbox, name);
+    container.append(label);
+  });
+}
+
+function updateHomepageFormAvailability() {
+  const form = document.querySelector("#homepage-form");
+  if (!form) return;
+  const ready = homepageSettingsLoaded && publishedAlbumsLoaded;
+  const saveButton = form.querySelector('button[type="submit"]');
+  saveButton.disabled = !ready;
+  saveButton.textContent = ready ? "Save homepage features" : "Loading homepage…";
+  document.querySelector("#remove-homepage-media").disabled = !ready;
+}
+
+function renderHomepageAdminPreview() {
+  const preview = document.querySelector("#homepage-current-preview");
+  if (!preview) return;
+  preview.replaceChildren();
+  const url = homepageSettings.mediaUrl;
+  let validUrl = "";
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === "https:") validUrl = parsed.href;
+  } catch {}
+  if (!validUrl || !["image", "video"].includes(homepageSettings.mediaType)) {
+    preview.append(makeEmptyNote("No featured image or video is set."));
+    return;
+  }
+  const media = document.createElement(homepageSettings.mediaType === "video" ? "video" : "img");
+  media.src = validUrl;
+  if (media.tagName === "VIDEO") {
+    media.controls = true;
+    media.muted = true;
+    media.playsInline = true;
+  } else media.alt = "Current homepage featured media";
+  preview.append(media);
+}
+
+async function loadHomepageSettings() {
+  const snapshot = await getDoc(doc(db, "settings", "site_config"));
+  const data = snapshot.exists() ? snapshot.data() : {};
+  homepageSettings = {
+    mediaUrl: typeof data.homeMediaUrl === "string" ? data.homeMediaUrl : "",
+    mediaType: typeof data.homeMediaType === "string" ? data.homeMediaType : "",
+    mediaPublicId: typeof data.homeMediaPublicId === "string" ? data.homeMediaPublicId : "",
+    description: typeof data.homeMediaDescription === "string" ? data.homeMediaDescription : "",
+    featuredAlbums: Array.isArray(data.homeFeaturedAlbums)
+      ? data.homeFeaturedAlbums.filter((album) => typeof album === "string").slice(0, 4)
+      : []
+  };
+  homepageSettingsLoaded = true;
+  document.querySelector('#homepage-form [name="description"]').value = homepageSettings.description;
+  renderHomepageAdminPreview();
+  renderHomepageAlbumOptions();
+  updateHomepageFormAvailability();
+}
+
+async function saveHomepageSettings(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  const file = data.get("media");
+  let uploaded = null;
+  try {
+    let mediaUrl = homepageSettings.mediaUrl;
+    let mediaType = homepageSettings.mediaType;
+    let mediaPublicId = homepageSettings.mediaPublicId;
+    if (file?.size) {
+      uploaded = await uploadAsset(file, (percent) => {
+        setUploadStatus(`Uploading homepage media… ${percent}%`);
+      });
+      mediaUrl = uploaded.url;
+      mediaType = uploaded.resourceType;
+      mediaPublicId = uploaded.publicId;
+    }
+    const updated = {
+      homeMediaUrl: mediaUrl,
+      homeMediaType: mediaType,
+      homeMediaPublicId: mediaPublicId,
+      homeMediaDescription: stringValue(data, "description").slice(0, 600),
+      homeFeaturedAlbums: selectedHomepageAlbums(),
+      updatedAt: serverTimestamp(),
+      updatedBy: currentUser.uid
+    };
+    await setDoc(doc(db, "settings", "site_config"), updated, { merge: true });
+    homepageSettings = {
+      mediaUrl: updated.homeMediaUrl,
+      mediaType: updated.homeMediaType,
+      mediaPublicId: updated.homeMediaPublicId,
+      description: updated.homeMediaDescription,
+      featuredAlbums: updated.homeFeaturedAlbums
+    };
+    form.elements.media.value = "";
+    clearFormPreview("homepage-form", "media", "homepage-media-upload-preview");
+    renderHomepageAdminPreview();
+    setMessage("Homepage media and album selections saved.");
+  } catch (error) {
+    console.error("Could not save VCKTEC homepage features:", error);
+    setMessage(`${error.message || "Homepage features could not be saved."}${cloudinaryCleanupHint([uploaded])}`, true);
+  }
+}
+
+function bindHomepageMediaForm() {
+  const form = document.querySelector("#homepage-form");
+  lockFormSubmit(form, saveHomepageSettings);
+  bindPreview(form.elements.media, document.querySelector("#homepage-media-upload-preview"));
+  document.querySelector("#remove-homepage-media").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    try {
+      await setDoc(doc(db, "settings", "site_config"), {
+        homeMediaUrl: "",
+        homeMediaType: "",
+        homeMediaPublicId: "",
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUser.uid
+      }, { merge: true });
+      homepageSettings.mediaUrl = "";
+      homepageSettings.mediaType = "";
+      homepageSettings.mediaPublicId = "";
+      renderHomepageAdminPreview();
+      setMessage("Featured homepage media removed.");
+    } catch (error) {
+      console.error("Could not remove the VCKTEC homepage media:", error);
+      setMessage(error.message || "Featured media could not be removed.", true);
+    } finally {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+    }
+  });
+}
+
 async function uploadGalleryFiles(form) {
   const data = new FormData(form);
   const files = [...form.elements.media.files];
@@ -599,6 +767,11 @@ async function loadGallery() {
   const container = document.querySelector("#managed-photos");
   container.replaceChildren(makeEmptyNote("Loading published media…"));
   const snapshot = await getDocs(query(collection(db, "gallery"), orderBy("createdAt", "desc")));
+  publishedAlbumNames = [...new Set(snapshot.docs.map((entry) => entry.data().album || "VCKTEC moments"))]
+    .sort((first, second) => first.localeCompare(second));
+  publishedAlbumsLoaded = true;
+  renderHomepageAlbumOptions();
+  updateHomepageFormAvailability();
   container.replaceChildren();
   if (snapshot.empty) container.append(makeEmptyNote("No photos or videos have been published yet."));
   snapshot.docs.forEach((entry) => container.append(renderMediaManagerItem({ id: entry.id, ...entry.data() })));
@@ -1142,6 +1315,7 @@ async function loadDashboardData() {
       loadGallery(),
       loadWeeklyPosts(),
       loadSuggestions(),
+      loadHomepageSettings(),
       roleManagers.has(currentProfile.role) ? loadAnonymousSubmissions() : Promise.resolve(),
       roleManagers.has(currentProfile.role) ? loadUsers() : Promise.resolve(),
       currentProfile.role === "owner" ? loadBoardProfiles() : Promise.resolve(),
@@ -1191,6 +1365,7 @@ function showDashboard(access) {
   });
   if (isManager) {
     bindDashboardTabs(access.profile.role);
+    bindHomepageMediaForm();
     if (access.profile.role !== "editor") bindManagerForms();
     else {
       document.querySelector("#event-form").closest(".panel-card").hidden = true;

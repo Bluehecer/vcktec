@@ -125,6 +125,58 @@ function mediaCaption(item) {
   return isUploadFilename ? "" : caption;
 }
 
+let homepageSettings = { mediaUrl: "", mediaType: "", description: "", featuredAlbums: [] };
+
+function renderHomepageMedia() {
+  const container = document.querySelector("#home-featured-media");
+  if (!container) return;
+  const card = element("article", "home-feature-card");
+  const url = safeUrl(homepageSettings.mediaUrl);
+  let media = null;
+  if (url && homepageSettings.mediaType === "video") {
+    media = element("video", "home-feature-asset");
+    media.src = url;
+    media.controls = true;
+    media.autoplay = true;
+    media.loop = true;
+    media.muted = true;
+    media.playsInline = true;
+    media.preload = "metadata";
+    media.setAttribute("aria-label", "Featured VCKTEC video");
+  } else if (url && homepageSettings.mediaType === "image") {
+    media = element("img", "home-feature-asset");
+    media.src = url;
+    media.alt = "Featured VCKTEC project or activity";
+    media.loading = "lazy";
+  }
+  if (media) {
+    media.addEventListener("error", () => {
+      media.replaceWith(element("div", "home-feature-placeholder", "Featured media is temporarily unavailable."));
+    }, { once: true });
+    card.append(media);
+  } else {
+    card.append(element("div", "home-feature-placeholder", "A featured VCKTEC image or video will appear here soon."));
+  }
+  const copy = element("div", "home-feature-copy");
+  copy.append(element("p", "", homepageSettings.description || "A glimpse of the ideas, projects, and people bringing VCKTEC to life."));
+  card.append(copy);
+  container.replaceChildren(card);
+}
+
+async function loadHomepageSettings() {
+  const snapshot = await getDoc(doc(db, "settings", "site_config"));
+  const settings = snapshot.exists() ? snapshot.data() : {};
+  homepageSettings = {
+    mediaUrl: typeof settings.homeMediaUrl === "string" ? settings.homeMediaUrl : "",
+    mediaType: ["image", "video"].includes(settings.homeMediaType) ? settings.homeMediaType : "",
+    description: typeof settings.homeMediaDescription === "string" ? settings.homeMediaDescription : "",
+    featuredAlbums: Array.isArray(settings.homeFeaturedAlbums)
+      ? settings.homeFeaturedAlbums.filter((album) => typeof album === "string").slice(0, 4)
+      : []
+  };
+  renderHomepageMedia();
+}
+
 function mediaElement(item, className = "") {
   const url = safeUrl(mediaUrl(item));
   if (!url) return null;
@@ -392,7 +444,9 @@ async function loadGallery() {
   const albums = groupAlbums(media);
   if (homeContainer) {
     homeContainer.replaceChildren();
-    const previews = albums.slice(0, 4);
+    const previews = homepageSettings.featuredAlbums
+      .map((name) => albums.find((album) => album.title === name))
+      .filter(Boolean);
     if (!previews.length) empty(homeContainer, "Society photos and videos will appear here soon.");
     previews.forEach((album) => homeContainer.append(albumCard(album)));
   }
@@ -505,7 +559,7 @@ if (year) year.textContent = String(new Date().getFullYear());
 
 async function start() {
   if (!isFirebaseConfigured || !db) {
-    document.querySelectorAll("#home-events-preview, #events-list, #home-gallery-preview, #albums-grid, #album-media, #weekly-grid, #home-weekly-preview, #board-grid")
+    document.querySelectorAll("#home-events-preview, #events-list, #home-featured-media, #home-gallery-preview, #albums-grid, #album-media, #weekly-grid, #home-weekly-preview, #board-grid")
       .forEach((container) => empty(container, "Connect Firebase to load VCKTEC content."));
     const detail = document.querySelector("#event-detail");
     if (detail) empty(detail, "Connect Firebase to load this event.");
@@ -514,13 +568,14 @@ async function start() {
   const page = document.body.dataset.page;
   try {
     if (page === "home" || page === "events") await loadEvents();
+    if (page === "home") await loadHomepageSettings();
     if (page === "home" || page === "gallery" || page === "album") await loadGallery();
     if (page === "home" || page === "weekly") await loadWeekly();
     if (page === "board") await loadBoard();
     if (page === "event") await loadEventDetail();
   } catch (error) {
     console.error(`Could not load VCKTEC ${page} content:`, error);
-    document.querySelectorAll("#home-events-preview, #events-list, #home-gallery-preview, #albums-grid, #album-media, #weekly-grid, #home-weekly-preview, #board-grid, #event-detail")
+    document.querySelectorAll("#home-events-preview, #events-list, #home-featured-media, #home-gallery-preview, #albums-grid, #album-media, #weekly-grid, #home-weekly-preview, #board-grid, #event-detail")
       .forEach((container) => empty(container, "Content could not be loaded. Check Firebase settings and Firestore rules."));
   } finally {
     window.dispatchEvent(new Event("vcktec:page-ready"));

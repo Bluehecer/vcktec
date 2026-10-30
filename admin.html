@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="assets/css/style.css?v=20261028-event-coverfix">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261030-homepage-media">
 </head>
 <body class="min-h-screen bg-ink text-slate-100 antialiased" data-page="admin">
   <div class="global-loader" id="global-loader" role="status" aria-label="Loading VCKTEC"><div class="loader-core"><span class="loader-orbit"></span><img src="assets/images/society-logo.jpg" alt="" class="loader-logo"><span class="loader-pulse"></span></div><p class="loader-wordmark">VCKTEC<span>.</span></p><p class="loader-caption">BUILDING TOMORROW, TOGETHER</p><div class="loader-track"><span></span></div></div>
@@ -86,6 +86,7 @@
           <button class="dashboard-tab is-active" id="tab-events" type="button" role="tab" aria-selected="true" aria-controls="manage-events">Events</button>
           <button class="dashboard-tab" id="tab-gallery" type="button" role="tab" aria-selected="false" aria-controls="manage-gallery">Gallery</button>
           <button class="dashboard-tab" id="tab-weekly" type="button" role="tab" aria-selected="false" aria-controls="manage-weekly">Weekly</button>
+          <button class="dashboard-tab" id="tab-homepage" type="button" role="tab" aria-selected="false" aria-controls="manage-homepage">Homepage</button>
           <button class="dashboard-tab owner-only" id="tab-board" type="button" role="tab" aria-selected="false" aria-controls="manage-board" hidden>Board</button>
           <button class="dashboard-tab" id="tab-reviews" type="button" role="tab" aria-selected="false" aria-controls="manage-reviews">Reviews & members</button>
         </nav>
@@ -140,6 +141,20 @@
             <section class="panel-card"><p class="section-kicker">PUBLISHED POSTS</p><div class="managed-list content-manager-list" id="managed-weekly"></div></section>
           </div>
         </section>
+        <section class="dashboard-panel" id="manage-homepage" role="tabpanel" aria-labelledby="tab-homepage" hidden>
+          <div class="dashboard-section-heading"><div><p class="section-kicker">HOMEPAGE SPOTLIGHT</p><h2>Feature VCKTEC media.</h2><p class="panel-intro">Choose an image or video and write the description shown with it. Videos are presented muted and inline for browser-safe autoplay.</p></div></div>
+          <div class="dashboard-grid manager-grid">
+            <section class="panel-card"><form id="homepage-form" class="form-stack">
+              <label>Replace featured image or video<input name="media" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"><span class="field-hint">Optional when keeping the current media. Images up to 8 MB; videos up to 50 MB.</span></label>
+              <div class="upload-preview" id="homepage-media-upload-preview" hidden></div>
+              <label>Media description<textarea name="description" rows="4" maxlength="600" placeholder="Tell visitors what they’re seeing…"></textarea></label>
+              <fieldset class="home-album-fieldset"><legend>Albums to feature on the homepage</legend><p class="field-hint">Choose up to four published albums. Their latest photos appear below the spotlight.</p><div id="home-featured-albums" class="home-album-options"></div></fieldset>
+              <div class="form-row"><button class="button button-primary" type="submit" disabled>Loading homepage…</button><button class="button button-outline" id="remove-homepage-media" type="button" disabled>Remove featured media</button></div>
+              <p class="form-message" id="homepage-save-status" role="status" aria-live="polite" hidden></p>
+            </form></section>
+            <section class="panel-card"><p class="section-kicker">CURRENT HOMEPAGE MEDIA</p><div class="upload-preview homepage-current-preview" id="homepage-current-preview"></div></section>
+          </div>
+        </section>
         <section class="dashboard-panel" id="manage-board" role="tabpanel" aria-labelledby="tab-board" hidden>
           <div class="dashboard-section-heading"><div><p class="section-kicker">OWNER-ONLY CONTROLS</p><h2 id="board-form-heading">Introduce a board member.</h2><p class="panel-intro">Only the society owner can add, edit, reorder, or remove board profiles shown on the public Board page.</p></div></div>
           <div class="dashboard-grid manager-grid">
@@ -171,6 +186,6 @@
     </div>
   </main>
   <script type="module" src="assets/js/site-ui.js?v=20261028-publish2"></script><script type="module" src="assets/js/auth.js"></script>
-  <script type="module" src="assets/js/admin.js?v=20261028-gallery-polish"></script>
+  <script type="module" src="assets/js/admin.js?v=20261030-homepage-media"></script>
 </body>
 </html>
