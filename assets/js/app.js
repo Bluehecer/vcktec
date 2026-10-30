@@ -126,6 +126,7 @@ function mediaCaption(item) {
 }
 
 let homepageSettings = { mediaUrl: "", mediaType: "", description: "", featuredAlbums: [] };
+let homeGalleryTimer = null;
 
 function renderHomepageMedia() {
   const container = document.querySelector("#home-featured-media");
@@ -133,6 +134,7 @@ function renderHomepageMedia() {
   const card = element("article", "home-feature-card");
   const url = safeUrl(homepageSettings.mediaUrl);
   let media = null;
+  let playbackToggle = null;
   if (url && homepageSettings.mediaType === "video") {
     media = element("video", "home-feature-asset");
     media.src = url;
@@ -143,6 +145,21 @@ function renderHomepageMedia() {
     media.playsInline = true;
     media.preload = "metadata";
     media.setAttribute("aria-label", "Featured VCKTEC video");
+    playbackToggle = element("button", "button button-outline home-feature-toggle", "Ⅱ Pause preview");
+    playbackToggle.type = "button";
+    playbackToggle.setAttribute("aria-label", "Pause featured video");
+    const updatePlaybackToggle = () => {
+      playbackToggle.textContent = media.paused ? "▶ Play preview" : "Ⅱ Pause preview";
+      playbackToggle.setAttribute("aria-label", media.paused ? "Play featured video" : "Pause featured video");
+    };
+    playbackToggle.addEventListener("click", () => {
+      if (media.paused) {
+        media.play().catch(() => window.vcktecToast?.("Featured video could not be played.", "error"));
+      } else media.pause();
+    });
+    media.addEventListener("play", updatePlaybackToggle);
+    media.addEventListener("pause", updatePlaybackToggle);
+    updatePlaybackToggle();
   } else if (url && homepageSettings.mediaType === "image") {
     media = element("img", "home-feature-asset");
     media.src = url;
@@ -152,6 +169,7 @@ function renderHomepageMedia() {
   if (media) {
     media.addEventListener("error", () => {
       media.replaceWith(element("div", "home-feature-placeholder", "Featured media is temporarily unavailable."));
+      if (playbackToggle) playbackToggle.hidden = true;
     }, { once: true });
     card.append(media);
   } else {
@@ -159,6 +177,7 @@ function renderHomepageMedia() {
   }
   const copy = element("div", "home-feature-copy");
   copy.append(element("p", "", homepageSettings.description || "A glimpse of the ideas, projects, and people bringing VCKTEC to life."));
+  if (playbackToggle) copy.append(playbackToggle);
   card.append(copy);
   container.replaceChildren(card);
 }
@@ -323,6 +342,101 @@ function renderGalleryItems(items, container) {
   items.forEach((item) => container.append(mediaButton(item)));
 }
 
+function renderHomeGallerySlideshow(container, slides) {
+  container.replaceChildren();
+  if (!slides.length) {
+    empty(container, "Photos from the selected albums will appear here when they are available.");
+    return;
+  }
+
+  const slideshow = element("article", "home-gallery-slideshow");
+  const figure = element("figure", "home-gallery-figure");
+  const image = element("img", "home-gallery-image");
+  image.loading = "eager";
+  image.decoding = "async";
+  image.alt = "";
+  const caption = element("figcaption", "home-gallery-caption");
+  const albumName = element("p", "section-kicker");
+  const photoCaption = element("p", "home-gallery-photo-caption");
+  const albumLink = element("a", "text-link", "Explore this album →");
+  const controls = element("div", "home-gallery-controls");
+  const previous = element("button", "button button-outline home-gallery-control", "Previous");
+  const status = element("span", "home-gallery-status");
+  const pause = element("button", "button button-outline home-gallery-control", "Pause");
+  const next = element("button", "button button-outline home-gallery-control", "Next");
+  previous.type = "button";
+  pause.type = "button";
+  next.type = "button";
+  previous.setAttribute("aria-label", "Show previous photo");
+  pause.setAttribute("aria-label", "Pause slideshow");
+  next.setAttribute("aria-label", "Show next photo");
+  status.setAttribute("aria-live", "polite");
+  status.setAttribute("aria-atomic", "true");
+  const multiPhoto = slides.length > 1;
+  previous.hidden = !multiPhoto;
+  next.hidden = !multiPhoto;
+  pause.hidden = !multiPhoto;
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let activeIndex = 0;
+  let isPaused = reducedMotion;
+
+  function showSlide() {
+    const slide = slides[activeIndex];
+    const text = mediaCaption(slide.item);
+    image.src = slide.url;
+    image.alt = text || `Photo from ${slide.album}`;
+    albumName.textContent = slide.album;
+    photoCaption.textContent = text;
+    photoCaption.hidden = !text;
+    albumLink.href = `album.html?album=${encodeURIComponent(slide.album)}`;
+    status.textContent = `${activeIndex + 1} of ${slides.length}`;
+    pause.textContent = isPaused ? "Play" : "Pause";
+    pause.setAttribute("aria-label", isPaused ? "Resume slideshow" : "Pause slideshow");
+  }
+
+  image.addEventListener("error", () => {
+    const unavailableSlide = slides[activeIndex];
+    if (image.src !== unavailableSlide.url) return;
+    slides.splice(activeIndex, 1);
+    if (!slides.length) {
+      if (homeGalleryTimer !== null) window.clearInterval(homeGalleryTimer);
+      homeGalleryTimer = null;
+      empty(container, "Photos from the selected albums are temporarily unavailable.");
+      return;
+    }
+    activeIndex %= slides.length;
+    previous.hidden = slides.length < 2;
+    next.hidden = slides.length < 2;
+    pause.hidden = slides.length < 2;
+    if (slides.length < 2 && homeGalleryTimer !== null) {
+      window.clearInterval(homeGalleryTimer);
+      homeGalleryTimer = null;
+    }
+    showSlide();
+  });
+
+  function moveSlide(direction) {
+    activeIndex = (activeIndex + direction + slides.length) % slides.length;
+    showSlide();
+  }
+
+  previous.addEventListener("click", () => moveSlide(-1));
+  next.addEventListener("click", () => moveSlide(1));
+  pause.addEventListener("click", () => {
+    isPaused = !isPaused;
+    if (homeGalleryTimer !== null) window.clearInterval(homeGalleryTimer);
+    homeGalleryTimer = isPaused ? null : window.setInterval(() => moveSlide(1), 5500);
+    showSlide();
+  });
+  caption.append(albumName, photoCaption, albumLink);
+  figure.append(image, caption);
+  controls.append(previous, status, pause, next);
+  slideshow.append(figure, controls);
+  container.append(slideshow);
+  showSlide();
+  if (multiPhoto && !isPaused) homeGalleryTimer = window.setInterval(() => moveSlide(1), 5500);
+}
+
 async function loadEvents() {
   const container = document.querySelector("#events-list");
   const home = document.querySelector("#home-events-preview");
@@ -443,12 +557,14 @@ async function loadGallery() {
 
   const albums = groupAlbums(media);
   if (homeContainer) {
-    homeContainer.replaceChildren();
     const previews = homepageSettings.featuredAlbums
       .map((name) => albums.find((album) => album.title === name))
       .filter(Boolean);
-    if (!previews.length) empty(homeContainer, "Society photos and videos will appear here soon.");
-    previews.forEach((album) => homeContainer.append(albumCard(album)));
+    const slides = previews.flatMap((album) => album.media
+      .filter((item) => !isVideo(item))
+      .map((item) => ({ album: album.title, item, url: safeUrl(mediaUrl(item)) }))
+      .filter((slide) => slide.url));
+    renderHomeGallerySlideshow(homeContainer, slides);
   }
   if (albumsContainer) {
     albumsContainer.replaceChildren();
